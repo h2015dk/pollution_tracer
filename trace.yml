@@ -1,0 +1,49 @@
+name: Pollution Source Trace
+
+on:
+  workflow_dispatch:
+    inputs:
+      lat:
+        description: "緯度 (WGS84)"
+        required: true
+        default: "25.0800"
+      lon:
+        description: "經度 (WGS84)"
+        required: true
+        default: "121.5800"
+      time:
+        description: "時間 (台北時間) 例 2026-11-22 14:00"
+        required: true
+      radius_km:
+        description: "搜尋半徑 (km)"
+        default: "10"
+      window_hours:
+        description: "往前回溯小時數"
+        default: "24"
+
+jobs:
+  trace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run trace
+        env:
+          FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          LAT: ${{ inputs.lat }}
+          LON: ${{ inputs.lon }}
+          T: ${{ inputs.time }}
+          R: ${{ inputs.radius_km }}
+          W: ${{ inputs.window_hours }}
+        run: |
+          python trace.py --lat "$LAT" --lon "$LON" --time "$T" --radius "$R" --window-hours "$W" --out output
+          cat output/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pollution-trace-${{ github.run_id }}
+          path: output/
