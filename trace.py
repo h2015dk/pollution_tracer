@@ -606,6 +606,90 @@ def sat_links(lat, lon, t):
 
 
 # ---------------------------------------------------------------- 地圖
+SEARCH_JS = r"""
+window.addEventListener('load', function () {
+  var map = %(map)s, SRC = %(data)s, hl = null;
+  var box = L.control({position: 'topleft'});
+  box.onAdd = function () {
+    var d = L.DomUtil.create('div', 'pt-search');
+    d.innerHTML = '<div style="display:flex;gap:4px"><input id="pt-q" type="search" placeholder="搜尋：工廠名稱/管編/地址/地標，或 25.03,121.07">' +
+                  '<button id="pt-go" title="搜尋地點">🔍</button></div><div id="pt-res"></div>';
+    L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+    return d;
+  };
+  box.addTo(map);
+  var q = document.getElementById('pt-q'), res = document.getElementById('pt-res');
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function go(lat, lon, title, body) {
+    if (hl) map.removeLayer(hl);
+    hl = L.circleMarker([lat, lon], {radius: 14, color: '#ff00ff', weight: 3, fill: false}).addTo(map)
+          .bindPopup('<b>' + esc(title) + '</b>' + (body ? '<br>' + esc(body) : '')).openPopup();
+    map.flyTo([lat, lon], Math.max(map.getZoom(), 16));
+    res.innerHTML = '';
+  }
+  function show(items, head) {
+    res.innerHTML = (head ? '<div class="pt-h">' + head + '</div>' : '') + items.map(function (it, i) {
+      return '<div class="pt-it" data-i="' + i + '"><b>' + esc(it.t) + '</b><br><small>' + esc(it.s || '') + '</small></div>';
+    }).join('');
+    Array.prototype.forEach.call(res.querySelectorAll('.pt-it'), function (el) {
+      el.onclick = function () { var it = items[+el.dataset.i]; go(it.lat, it.lon, it.t, it.s); };
+    });
+  }
+  // 地圖內資料：輸入即篩選（名稱、類別、管編、地址）
+  function local(v) {
+    v = v.trim().toLowerCase(); if (!v) { res.innerHTML = ''; return []; }
+    var out = [];
+    for (var i = 0; i < SRC.length && out.length < 8; i++) {
+      var r = SRC[i]; if ((r[0] + ' ' + r[1] + ' ' + r[4]).toLowerCase().indexOf(v) >= 0)
+        out.push({t: r[0], s: r[1] + '｜' + r[4], lat: r[2], lon: r[3]});
+    }
+    return out;
+  }
+  q.addEventListener('input', function () {
+    var it = local(q.value);
+    if (it.length) show(it, '地圖內資料（按 Enter 改搜尋地址/地標）'); else res.innerHTML = '';
+  });
+  // 座標或地址/地標：按 Enter 或 🔍 才查 Nominatim（遵守其 1 次/秒 限制，不做逐字查詢）
+  function search() {
+    var v = q.value.trim(); if (!v) return;
+    var m = v.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,，\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (m) { go(+m[1], +m[2], '座標 ' + m[1] + ', ' + m[2], ''); return; }
+    res.innerHTML = '<div class="pt-h">搜尋中…</div>';
+    fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=tw&accept-language=zh-TW&q=' + encodeURIComponent(v))
+      .then(function (r) { return r.json(); })
+      .then(function (js) {
+        var it = js.map(function (x) { return {t: x.name || x.display_name.split(',')[0], s: x.display_name, lat: +x.lat, lon: +x.lon}; });
+        var loc = local(v);
+        if (!it.length && !loc.length) { res.innerHTML = '<div class="pt-h">查無結果（可改用較完整的地址或地標名稱）</div>'; return; }
+        show(loc.concat(it), loc.length ? '地圖內資料＋地址/地標' : '地址/地標（OpenStreetMap）');
+      })
+      .catch(function () { res.innerHTML = '<div class="pt-h">地址查詢失敗（網路或服務限制），地圖內資料仍可搜尋</div>'; });
+  }
+  q.addEventListener('keydown', function (e) { if (e.key === 'Enter') search(); });
+  document.getElementById('pt-go').onclick = search;
+});
+"""
+SEARCH_CSS = """<style>
+.pt-search{background:#fff;padding:6px;border-radius:6px;box-shadow:0 1px 5px rgba(0,0,0,.4);width:min(320px,70vw);font:13px sans-serif}
+.pt-search input{flex:1;padding:4px 6px;border:1px solid #aaa;border-radius:4px;font-size:13px;min-width:0}
+.pt-search button{border:1px solid #aaa;border-radius:4px;background:#f5f5f5;cursor:pointer}
+#pt-res{max-height:45vh;overflow-y:auto}
+.pt-it{padding:4px 2px;border-bottom:1px solid #eee;cursor:pointer;line-height:1.3}
+.pt-it:hover{background:#eef5ff}.pt-h{color:#888;font-size:11px;padding:4px 0}
+</style>"""
+
+
+def add_search(m, sources, stations=()):
+    """左上角搜尋框：地圖內資料（固定源名稱/管編/地址、測站）即時篩選；
+    Enter 後以 Nominatim 查地址/地標；也可直接輸入「緯度,經度」。"""
+    data = [[s["name"], s["category"], round(s["lat"], 6), round(s["lon"], 6), s.get("note", "")]
+            for s in sources]
+    data += [[f"{st['source']}測站 {st['station']}", "測站", st["lat"], st["lon"], ""] for st in stations]
+    m.get_root().html.add_child(folium.Element(SEARCH_CSS))
+    m.get_root().script.add_child(folium.Element(
+        SEARCH_JS % dict(map=m.get_name(), data=json.dumps(data, ensure_ascii=False))))
+
+
 def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, stations=(), model_wind=None):
     m = folium.Map(location=[lat, lon], zoom_start=12, tiles=None)
     base = []
@@ -707,6 +791,7 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
                 GIBS_URL.format(layer=layer, date=d), name=f"{d[5:]} {label}", attr="NASA GIBS",
                 max_native_zoom=9, max_zoom=19, overlay=True, show=False, opacity=0.85).add_to(m))
 
+    add_search(m, sources, stations)
     GroupedLayerControl({k: v for k, v in ctl.items() if v}, exclusive_groups=False, base_layers=base,
                         collapsed=True, groupCheckboxes=True).add_to(m)
     # 桌機預設展開圖層選單，手機維持收合（點右上圖示展開）
