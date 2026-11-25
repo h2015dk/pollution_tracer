@@ -609,14 +609,16 @@ def sat_links(lat, lon, t):
 SEARCH_JS = r"""
 window.addEventListener('load', function () {
   var map = %(map)s, SRC = %(data)s, IDX_URL = %(idx)s, C = %(center)s, R = %(radius)s, hl = null;
-  var IDX = null, idxState = 0;  // 全臺索引：0 未載入、1 載入中、2 完成、-1 失敗
+  var IDX = null, idxState = 0, waiting = [];  // 全臺索引：0 未載入、1 載入中、2 完成、-1 失敗
   function loadIdx(cb) {
     if (idxState === 2 || idxState === -1) { cb && cb(); return; }
+    if (cb) waiting.push(cb);
     if (idxState === 1) return;
     idxState = 1;
-    fetch(IDX_URL).then(function (r) { if (!r.ok) throw 0; return r.json(); })
-      .then(function (js) { IDX = js; idxState = 2; cb && cb(); })
-      .catch(function () { idxState = -1; cb && cb(); });
+    function done() { var w = waiting; waiting = []; w.forEach(function (f) { f(); }); }
+    fetch(IDX_URL, {cache: 'no-cache'}).then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (js) { IDX = js; idxState = 2; done(); })
+      .catch(function () { idxState = -1; done(); });
   }
   function km(a, b, c, d) {
     var r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r;
@@ -686,6 +688,9 @@ window.addEventListener('load', function () {
     var v = q.value.trim(); if (!v) return;
     var m = v.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,，\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (m) { go(+m[1], +m[2], '座標 ' + m[1] + ', ' + m[2], ''); return; }
+    if (idxState < 2 && idxState !== -1) {  // 全臺清單還沒載完：先等它，再一起查
+      res.innerHTML = '<div class="pt-h">全臺清單載入中…</div>'; loadIdx(search); return;
+    }
     res.innerHTML = '<div class="pt-h">搜尋中…</div>';
     fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=tw&accept-language=zh-TW&q=' + encodeURIComponent(v))
       .then(function (r) { return r.json(); })
@@ -695,7 +700,11 @@ window.addEventListener('load', function () {
         if (!it.length && !loc.length) { res.innerHTML = '<div class="pt-h">查無結果（可改用較完整的地址或地標名稱）</div>'; return; }
         show(loc.concat(it), loc.length ? '地圖內資料＋地址/地標' : '地址/地標（OpenStreetMap）');
       })
-      .catch(function () { res.innerHTML = '<div class="pt-h">地址查詢失敗（網路或服務限制），地圖內資料仍可搜尋</div>'; });
+      .catch(function () {
+        var loc = local(v);
+        if (loc.length) show(loc, '固定源/設施（地址查詢服務暫時無法使用）');
+        else res.innerHTML = '<div class="pt-h">地址查詢失敗（網路或服務限制），且無符合的固定源</div>';
+      });
   }
   q.addEventListener('keydown', function (e) { if (e.key === 'Enter') search(); });
   document.getElementById('pt-go').onclick = search;
