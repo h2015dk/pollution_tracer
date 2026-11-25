@@ -30,7 +30,7 @@ tr = "".join(
 <style>body{{font:14px/1.5 sans-serif;margin:16px}}table{{border-collapse:collapse;width:100%}}
 td,th{{border:1px solid #ccc;padding:4px 6px;white-space:nowrap}}th{{background:#f0f0f0}}
 .wrap{{overflow-x:auto}}</style></head><body>
-<h2>污染源溯源紀錄</h2><p>點時間開啟互動地圖。⚠＝部分資料查詢失敗（詳見地圖側欄）。</p>
+<h2>污染源溯源紀錄</h2><p><a href="latest/map.html"><b>🆕 最新一次地圖</b></a>　點時間開啟互動地圖。⚠＝部分資料查詢失敗（詳見地圖側欄）。</p>
 <div class="wrap"><table><tr><th>事件時間</th><th>座標</th><th>半徑km</th><th>行政區</th><th>固定源</th>
 <th>火點</th><th>新聞</th><th>風</th><th></th></tr>{tr}</table></div></body></html>""", encoding="utf-8")
 print(f"index: {len(rows)} runs")
