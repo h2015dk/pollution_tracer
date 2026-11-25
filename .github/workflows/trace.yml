@@ -21,7 +21,7 @@ on:
         description: "往前回溯小時數"
         default: "24"
       wind_dir:
-        description: "（選填）手動風向°，風吹來方向，如測站值；空白則抓 Open-Meteo"
+        description: "（選填）手動風向°（風吹來的方向）；空白則自動：環境部/氣象署測站→Open-Meteo 模式"
         default: ""
       wind_speed:
         description: "（選填）手動風速 m/s"
