@@ -31,7 +31,17 @@ TZ = timezone(timedelta(hours=8))  # Asia/Taipei
 UA = {"User-Agent": "pollution-source-tracer/1.0 (environmental research)"}
 OVERPASS = [
     "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
+]
+# 底圖：OSM 官方圖磚要求 Referer，本機/手機直接開 map.html 會被 403 擋，故不用
+BASEMAPS = [
+    ("臺灣通用電子地圖(NLSC)", "https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}",
+     "&copy; 內政部國土測繪中心"),
+    ("CartoDB 淺色", "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+     "&copy; OpenStreetMap contributors &copy; CARTO"),
+    ("Esri 衛星影像", "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+     "Tiles &copy; Esri"),
 ]
 
 # 類別 -> (Overpass 篩選條件, 地圖顏色)
@@ -56,6 +66,28 @@ HEAT_CATS = {"工業區/工廠", "煙囪/儲槽/燃燒塔", "電廠/發電設施
 TAIWAN_BOXES = [(21.8, 25.4, 120.0, 122.1), (23.1, 23.85, 119.3, 119.75),
                 (25.9, 26.4, 119.9, 120.6), (24.3, 24.6, 118.15, 118.6)]
 NEWS_KEYWORDS = ["火災", "繞境", "廟會", "煙火", "焚燒", "道路施工", "空污", "工廠 異味"]
+# 標題含這些字 → 多半是廣告/宣導/評論，列為「疑似無關」（不刪除，只降級顯示）
+NEWS_NOISE = ["飯店", "酒店", "優惠", "懶人包", "開箱", "房", "派對", "門票", "行動電源", "鋰電池",
+              "宣導", "呼籲", "示警", "須知", "防範", "身障", "當年", "回顧"]
+FAILED = []  # 各蒐集步驟失敗紀錄，寫入地圖與 summary，避免「0 筆」與「查詢失敗」混淆
+
+
+def http(method, url, retries=3, backoff=5, **kw):
+    """含重試的 HTTP；429/5xx 會等待後重試（GitHub Actions 共用 IP 常被限流）。"""
+    kw.setdefault("headers", UA)
+    last = None
+    for i in range(retries):
+        try:
+            r = requests.request(method, url, **kw)
+            if r.status_code in (429, 500, 502, 503, 504):
+                raise requests.HTTPError(f"HTTP {r.status_code}", response=r)
+            r.raise_for_status()
+            return r
+        except Exception as e:
+            last = e
+            if i < retries - 1:
+                time.sleep(backoff * (i + 1))
+    raise last
 
 
 # ---------------------------------------------------------------- 幾何
@@ -102,13 +134,16 @@ def collect_osm(lat, lon, radius_km):
         data = None
         for url in OVERPASS:
             try:
-                r = requests.post(url, data={"data": query}, headers=UA, timeout=120)
-                r.raise_for_status()
+                r = http("POST", url, retries=2, backoff=10, data={"data": query}, timeout=120)
                 data = r.json()
+                if "remark" in data and "runtime error" in data["remark"]:  # 逾時但回 200
+                    raise RuntimeError(data["remark"][:100])
                 break
             except Exception as e:  # 換下一個鏡像
+                data = None
                 print(f"  [overpass] {cat} @ {url}: {e}", file=sys.stderr)
         if data is None:
+            FAILED.append(f"OSM {cat}：所有 Overpass 鏡像查詢失敗（非 0 筆）")
             continue
         for el in data.get("elements", []):
             tags = el.get("tags", {})
@@ -129,6 +164,8 @@ def collect_extra(path):
     out = []
     with open(path, encoding="utf-8-sig") as f:
         for row in csv.DictReader(f):
+            if (row.get("name") or "").startswith("範例"):  # 範本列不納入
+                continue
             try:
                 out.append(dict(name=row.get("name", "(未命名)"), category=row.get("category") or "自備固定源",
                                 lat=float(row["lat"]), lon=float(row["lon"]), source="使用者CSV",
@@ -141,14 +178,22 @@ def collect_extra(path):
 def collect_wind(lat, lon, t):
     """回傳 t 前 3 小時的向量平均風（風向=風吹來的方向）。"""
     age = (datetime.now(TZ) - t).days
-    url = ("https://archive-api.open-meteo.com/v1/archive" if age > 5
-           else "https://api.open-meteo.com/v1/forecast")
+    archive, forecast = "https://archive-api.open-meteo.com/v1/archive", "https://api.open-meteo.com/v1/forecast"
+    # archive 約有 5 天延遲；近期用 forecast（含過去資料），兩者互為備援
+    urls = [archive, forecast] if age > 5 else [forecast, archive]
     params = dict(latitude=lat, longitude=lon, timezone="Asia/Taipei", wind_speed_unit="ms",
                   start_date=(t - timedelta(days=1)).date().isoformat(), end_date=t.date().isoformat(),
                   hourly="wind_speed_10m,wind_direction_10m,temperature_2m,precipitation")
-    r = requests.get(url, params=params, headers=UA, timeout=30)
-    r.raise_for_status()
-    h = r.json()["hourly"]
+    errs = []
+    h = None
+    for url in urls:
+        try:
+            h = http("GET", url, params=params, timeout=30).json()["hourly"]
+            break
+        except Exception as e:
+            errs.append(f"{url.split('/')[2]}: {e}")
+    if h is None:
+        raise RuntimeError("；".join(errs))
     xs = ys = ws_sum = prec = 0.0
     n = 0
     for ts, ws, wd, pr in zip(h["time"], h["wind_speed_10m"], h["wind_direction_10m"], h["precipitation"]):
@@ -215,13 +260,34 @@ def flag_industrial_fires(fires, sources, buffer_km):
     return fires
 
 
-def reverse_geocode(lat, lon):
-    r = requests.get("https://nominatim.openstreetmap.org/reverse", headers=UA, timeout=30,
-                     params=dict(lat=lat, lon=lon, format="jsonv2", zoom=14, **{"accept-language": "zh-TW"}))
+def _geocode1(lat, lon):
+    r = http("GET", "https://nominatim.openstreetmap.org/reverse", timeout=30,
+             params=dict(lat=lat, lon=lon, format="jsonv2", zoom=14, **{"accept-language": "zh-TW"}))
     ad = r.json().get("address", {})
     district = next((ad[k] for k in ("suburb", "city_district", "town", "village") if k in ad), None)
     city = ad.get("city") or ad.get("county") or ad.get("state")
-    return [n for n in dict.fromkeys([district, city]) if n]
+    return district, city
+
+
+def reverse_geocode(lat, lon, radius_km=0, wind=None):
+    """監測點所在區 + 半徑內鄰近行政區（上風方向優先）。回傳 [區..., 市...]。"""
+    district, city = _geocode1(lat, lon)
+    districts, cities = [district], [city]
+    if radius_km > 0:
+        brgs = list(range(0, 360, 45))
+        if wind:  # 上風扇區多取點
+            brgs = [wind["dir"] - 30, wind["dir"], wind["dir"] + 30] + brgs
+        for b in brgs:
+            for k in (0.4, 0.8):
+                time.sleep(1.1)  # Nominatim 限 1 req/s
+                try:
+                    d, c = _geocode1(*destination(lat, lon, b % 360, radius_km * k))
+                except Exception:
+                    continue
+                districts.append(d)
+                cities.append(c)
+    names = [n for n in dict.fromkeys(districts) if n][:8]
+    return names + [n for n in dict.fromkeys(cities) if n and n not in names]
 
 
 def collect_news(places, t0, t1):
@@ -242,17 +308,31 @@ def collect_news(places, t0, t1):
                 except Exception:
                     continue
                 if t0 - timedelta(days=1) <= dt <= t1 + timedelta(days=1):
-                    link = it.findtext("link")
-                    items.setdefault(link, dict(title=it.findtext("title"), link=link,
+                    link, title = it.findtext("link"), it.findtext("title") or ""
+                    noise = [w for w in NEWS_NOISE if w in title]
+                    if dt > t1:
+                        timing = "事件時間後發布"
+                    elif dt < t0:
+                        timing = "回溯窗前發布"
+                    else:
+                        timing = "回溯窗內"
+                    items.setdefault(link, dict(title=title, link=link,
                                                 published=dt.isoformat(timespec="minutes"),
-                                                media=it.findtext("source") or "", keyword=kw, place=name))
+                                                media=it.findtext("source") or "", keyword=kw, place=name,
+                                                timing=timing, relevant=not noise,
+                                                noise_words="/".join(noise)))
             time.sleep(1)
-    return sorted(items.values(), key=lambda x: x["published"], reverse=True)
+    # 相關者在前；同組依時間新→舊
+    news = sorted(items.values(), key=lambda x: x["published"], reverse=True)
+    return sorted(news, key=lambda x: not x["relevant"])  # stable：相關者在前，各組內新→舊
 
 
 # ---------------------------------------------------------------- 地圖
 def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir):
-    m = folium.Map(location=[lat, lon], zoom_start=12, tiles="OpenStreetMap")
+    m = folium.Map(location=[lat, lon], zoom_start=12, tiles=None)
+    for i, (name, url, attr) in enumerate(BASEMAPS):
+        folium.TileLayer(url, name=name, attr=attr, max_zoom=19, show=(i == 0), overlay=False,
+                         control=True).add_to(m)
     folium.Circle([lat, lon], radius=radius * 1000, color="#1f77b4", fill=False, weight=2,
                   tooltip=f"{radius:g} km").add_to(m)
     folium.Circle([lat, lon], radius=radius * 500, color="#1f77b4", fill=False, weight=1,
@@ -271,7 +351,7 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir):
     for s in sorted(sources, key=lambda x: x["dist_km"]):
         cat = s["category"]
         if cat not in groups:
-            fg = folium.FeatureGroup(name=f"{cat}", show=cat not in CLUSTER_CATS or True)
+            fg = folium.FeatureGroup(name=f"{cat}")
             fg.add_to(m)
             groups[cat] = (MarkerCluster().add_to(fg) if cat in CLUSTER_CATS else fg)
         up = s.get("upwind")
@@ -293,29 +373,48 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir):
                       icon=folium.Icon(color="gray" if ind else "red", icon="fire", prefix="fa"),
                       popup=folium.Popup(f"火點 {f['time']}<br>{note}信心 {f['confidence']}，FRP {f['frp']} MW<br>"
                                          f"{f['product']}", max_width=300)).add_to(fg)
-    folium.LayerControl(collapsed=False).add_to(m)
+    folium.LayerControl(collapsed=True).add_to(m)
 
     # 側欄摘要
     up_top = [s for s in sources if s.get("upwind") and s["category"] not in CLUSTER_CATS][:12]
     cnt = {}
     for s in sources:
         cnt[s["category"]] = cnt.get(s["category"], 0) + 1
-    h = [f"<div style='position:fixed;top:10px;right:10px;z-index:9999;width:330px;max-height:80vh;overflow:auto;"
-         "background:#fff;padding:10px;border:1px solid #888;border-radius:6px;font:12px/1.5 sans-serif'>",
-         f"<b>污染源溯源 {t:%Y-%m-%d %H:%M}</b><br>{lat:.5f}, {lon:.5f}　半徑 {radius:g} km<br>"]
+    # 可收合側欄（手機上預設收合，不擋地圖）
+    h = ["<details id='pt-panel' style='position:fixed;bottom:10px;left:10px;z-index:9999;"
+         "width:min(340px,85vw);max-height:70vh;overflow:auto;background:#fff;padding:8px 10px;"
+         "border:1px solid #888;border-radius:6px;font:12px/1.5 sans-serif'>",
+         f"<summary style='cursor:pointer'><b>污染源溯源 {t:%Y-%m-%d %H:%M}</b>（點此展開/收合）</summary>",
+         "<script>if(window.innerWidth>800)document.getElementById('pt-panel').open=true;</script>",
+         f"{lat:.5f}, {lon:.5f}　半徑 {radius:g} km<br>"]
     if wind:
-        h.append(f"風：自{compass(wind['dir'])}方 {wind['dir']:.0f}°，{wind['speed']:.1f} m/s，前3h降雨 {wind['precip']:.1f} mm<br>")
+        src = "手動輸入" if wind.get("manual") else "Open-Meteo 模式網格值"
+        h.append(f"風：自{compass(wind['dir'])}方 {wind['dir']:.0f}°，{wind['speed']:.1f} m/s，"
+                 f"前3h降雨 {wind.get('precip', 0):.1f} mm（{src}）<br>")
     else:
-        h.append("風：氣象資料取得失敗<br>")
+        h.append("<b style=color:#d62728>風：氣象資料取得失敗 → 無法判斷上風處</b>"
+                 "（可用 --wind-dir/--wind-speed 手動輸入測站風向）<br>")
+    if FAILED:
+        h.append("<hr><b style=color:#d62728>⚠ 資料查詢失敗（以下類別為「未取得」，不是 0 筆）</b><br>"
+                 + "<br>".join(html.escape(x) for x in FAILED))
     h.append("<hr><b>固定源統計</b><br>" + "<br>".join(f"{html.escape(k)}：{v}" for k, v in cnt.items()))
     h.append(f"<br>🔥 火點：{len(fires)}（疑似工業熱源 {sum(1 for f in fires if f.get('industrial'))}，灰色）")
     if up_top:
         h.append("<hr><b>上風處最近的工業/能源類污染源</b><br>" + "<br>".join(
             f"{s['dist_km']:.1f} km {compass(s['bearing'])}｜{html.escape(s['name'])}" for s in up_top))
+    def fmt(n):
+        tag = "" if n["timing"] == "回溯窗內" else f" <span style=color:#999>[{n['timing']}]</span>"
+        return (f"{n['published'][5:16]} <a href='{html.escape(n['link'])}' target='_blank'>"
+                f"{html.escape(n['title'])}</a>{tag}")
+    rel = [n for n in news if n["relevant"]]
+    noise = [n for n in news if not n["relevant"]]
     h.append(f"<hr><b>事件線索（新聞，{'、'.join(places)}）</b><br>")
-    h.append("<br>".join(f"{n['published'][5:16]} <a href='{html.escape(n['link'])}' target='_blank'>"
-                         f"{html.escape(n['title'])}</a>" for n in news[:25]) or "無符合時間範圍之新聞")
-    h.append("<br><i>新聞位置不精確，請自行判讀；OSM 資料不等於合法登記清單。</i></div>")
+    h.append("<br>".join(fmt(n) for n in rel[:25]) or "無符合時間範圍之新聞")
+    if noise:
+        h.append(f"<details><summary style=color:#999>疑似無關（廣告/宣導等）{len(noise)} 則</summary>"
+                 + "<br>".join(fmt(n) for n in noise[:25]) + "</details>")
+    h.append("<br><i>新聞位置不精確，請自行判讀；OSM 資料不等於合法登記清單；"
+             "OSM 施工路段常有過期標註。</i></details>")
     m.get_root().html.add_child(folium.Element("".join(h)))
     m.save(out_dir / "map.html")
 
@@ -338,6 +437,8 @@ def main():
     ap.add_argument("--window-hours", type=float, default=24.0, help="往前回溯小時數")
     ap.add_argument("--extra-sources", default="data/stationary_sources.csv")
     ap.add_argument("--out", default="output")
+    ap.add_argument("--wind-dir", type=float, help="手動風向（度，風吹來的方向；如測站資料），優先於 Open-Meteo")
+    ap.add_argument("--wind-speed", type=float, default=0.0, help="手動風速 m/s")
     ap.add_argument("--industrial-buffer", type=float, default=0.8,
                     help="火點距工業熱源多少公里內視為疑似工業熱源")
     a = ap.parse_args()
@@ -356,12 +457,15 @@ def main():
             return fn()
         except Exception as e:
             print(f"  ✗ {label} 失敗: {e}", file=sys.stderr)
+            FAILED.append(f"{label}：{str(e)[:150]}")
             return default
 
-    wind = safe("氣象", lambda: collect_wind(a.lat, a.lon, t), None)
+    if a.wind_dir is not None:
+        wind = dict(dir=a.wind_dir % 360, speed=a.wind_speed, precip=0.0, hours=0, manual=True)
+    else:
+        wind = safe("氣象", lambda: collect_wind(a.lat, a.lon, t), None)
     sources = safe("OSM 固定源/施工/廟宇", lambda: collect_osm(a.lat, a.lon, a.radius), [])
     sources += collect_extra(a.extra_sources)
-    sources = [s for s in sources]
     for s in sources:
         s["dist_km"] = round(haversine(a.lat, a.lon, s["lat"], s["lon"]), 3)
         s["bearing"] = round(bearing(a.lat, a.lon, s["lat"], s["lon"]), 1)
@@ -369,7 +473,7 @@ def main():
     sources = sorted([s for s in sources if s["dist_km"] <= a.radius], key=lambda s: s["dist_km"])
     fires = safe("FIRMS 火點", lambda: collect_fires(a.lat, a.lon, a.radius, t0, t, os.getenv("FIRMS_MAP_KEY")), [])
     flag_industrial_fires(fires, sources, a.industrial_buffer)
-    places = safe("反向地理編碼", lambda: reverse_geocode(a.lat, a.lon), [])
+    places = safe("反向地理編碼", lambda: reverse_geocode(a.lat, a.lon, a.radius, wind), [])
     news = safe("新聞事件線索", lambda: collect_news(places, t0, t), []) if places else []
 
     write_csv(out / "sources.csv", sources)
@@ -378,15 +482,16 @@ def main():
     summary = dict(lat=a.lat, lon=a.lon, time=t.isoformat(), radius_km=a.radius, wind=wind, places=places,
                    n_sources=len(sources), n_upwind=sum(s["upwind"] for s in sources),
                    n_fires=len(fires), n_fires_industrial=sum(f.get("industrial", False) for f in fires),
-                   n_news=len(news))
+                   n_news=len(news), n_news_relevant=sum(n["relevant"] for n in news), failed=FAILED)
     (out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     build_map(a.lat, a.lon, a.radius, t, wind, sources, fires, news, places, out)
 
     with open(out / "summary.md", "w", encoding="utf-8") as f:
         f.write(f"## 污染源溯源 {t:%Y-%m-%d %H:%M}\n\n- 位置：{a.lat}, {a.lon}（半徑 {a.radius:g} km）\n"
                 f"- 固定源/設施：{len(sources)}（上風處 {summary['n_upwind']}）\n- FIRMS 火點：{len(fires)}（疑似工業熱源 {summary['n_fires_industrial']}）\n"
-                f"- 新聞線索：{len(news)}\n- 風：{'自%s方 %.0f°，%.1f m/s' % (compass(wind['dir']), wind['dir'], wind['speed']) if wind else '無資料'}\n"
-                "\n下載 Artifact 內的 `map.html` 以瀏覽互動地圖。\n")
+                f"- 新聞線索：{len(news)}（疑似相關 {summary['n_news_relevant']}）\n- 風：{'自%s方 %.0f°，%.1f m/s' % (compass(wind['dir']), wind['dir'], wind['speed']) if wind else '無資料'}\n"
+                + ("".join(f"- ⚠ {x}\n" for x in FAILED) if FAILED else "")
+                + "\n下載 Artifact 內的 `map.html` 以瀏覽互動地圖。\n")
     print(json.dumps(summary, ensure_ascii=False))
 
 
