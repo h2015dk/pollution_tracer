@@ -164,7 +164,32 @@ def _osm_query(cat, filters, bbox, deadline):
     raise RuntimeError("；".join(errs))
 
 
+OSM_SNAPSHOT = Path(os.getenv("OSM_SNAPSHOT", "data/osm_taiwan.csv.gz"))
+
+
+def collect_osm_snapshot(lat, lon, radius_km):
+    """讀本地全臺 OSM 快照（每月由 update_osm.yml 產生），不需連 Overpass。"""
+    import gzip
+    meta = OSM_SNAPSHOT.with_name("osm_taiwan.meta.json")
+    built = json.loads(meta.read_text(encoding="utf-8")).get("built", "")[:10] if meta.exists() else "?"
+    out = []
+    with gzip.open(OSM_SNAPSHOT, "rt", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            la, lo = float(r["lat"]), float(r["lon"])
+            if abs(la - lat) > radius_km / 100 or haversine(lat, lon, la, lo) > radius_km:
+                continue
+            out.append(dict(name=r["name"], category=r["category"], lat=la, lon=lo,
+                            source=f"OSM快照({built})", note=r["note"]))
+    print(f"  [osm] 使用本地快照 {OSM_SNAPSHOT}（{built}），範圍內 {len(out)} 筆", file=sys.stderr)
+    return out
+
+
 def collect_osm(lat, lon, radius_km):
+    if OSM_SNAPSHOT.exists():
+        try:
+            return collect_osm_snapshot(lat, lon, radius_km)
+        except Exception as e:
+            print(f"  [osm] 快照讀取失敗，改查 Overpass：{e}", file=sys.stderr)
     # 快取以 0.01° 網格 + 半徑為鍵；同一地點重跑不必再查 Overpass
     key = f"{lat:.2f}_{lon:.2f}_{radius_km:g}"
     dlat = radius_km / 111.0
