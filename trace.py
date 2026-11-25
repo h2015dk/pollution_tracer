@@ -506,7 +506,12 @@ def main():
     if not in_taiwan(a.lat, a.lon):
         sys.exit(f"座標 ({a.lat}, {a.lon}) 不在台灣範圍內（本程式僅限台灣）")
 
-    t = datetime.fromisoformat(a.time.replace("T", " "))
+    # 容錯：前後空白、全形空白、斜線日期、T 分隔（例 " 2026/11/22 14:00"）
+    ts = " ".join(a.time.replace("\u3000", " ").replace("/", "-").replace("T", " ").split())
+    try:
+        t = datetime.fromisoformat(ts)
+    except ValueError:
+        sys.exit(f"時間格式無法辨識：{a.time!r}，請用「2026-11-22 14:00」格式")
     t = t.replace(tzinfo=TZ) if t.tzinfo is None else t.astimezone(TZ)
     t0 = t - timedelta(hours=a.window_hours)
     out = Path(a.out)
