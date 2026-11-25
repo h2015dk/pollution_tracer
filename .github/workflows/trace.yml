@@ -67,6 +67,7 @@ jobs:
           WD: ${{ inputs.wind_dir }}
           WS: ${{ inputs.wind_speed }}
           MAP_URL: ${{ env.PAGES_BASE }}/runs/${{ github.run_id }}/map.html
+          SEARCH_INDEX_URL: ${{ env.PAGES_BASE }}/search/index.json
         run: |
           EXTRA=()
           if [ -n "$WD" ]; then EXTRA+=(--wind-dir "$WD" --wind-speed "${WS:-0}"); fi
@@ -95,6 +96,7 @@ jobs:
           # 固定網址：latest/ 永遠是最新一次結果（README 連這裡）
           rm -rf site/latest && mkdir -p site/latest && cp -r output/. site/latest/
           python scripts/build_index.py site
+          python scripts/build_search_index.py site/search/index.json   # 地圖搜尋框用的全臺清單
           touch site/.nojekyll
           cd site
           if [ ! -d .git ]; then
