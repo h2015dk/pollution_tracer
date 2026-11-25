@@ -284,6 +284,144 @@ def collect_wind(lat, lon, t):
     return dict(dir=(math.degrees(math.atan2(xs, ys)) + 360) % 360, speed=ws_sum / n, precip=prec, hours=n)
 
 
+# ---------------------------------------------------------------- 測站風向
+def _pick(rec, *names):
+    """欄位名稱不分大小寫取值（環境部 API 欄位大小寫不一）。"""
+    low = {k.lower(): v for k, v in rec.items()}
+    for n in names:
+        v = low.get(n.lower())
+        if v not in (None, "", "-", "--", "x", "X"):
+            return v
+    return None
+
+
+def _num(v):
+    try:
+        x = float(v)
+        return None if x < 0 or x > 990 else x  # -99/999 等缺值
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_ts(v):
+    if not v:
+        return None
+    v = str(v).replace("/", "-").replace("T", " ")[:19]
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(v, fmt).replace(tzinfo=TZ)
+        except ValueError:
+            continue
+    try:
+        d = datetime.fromisoformat(v)
+        return d.replace(tzinfo=TZ) if d.tzinfo is None else d.astimezone(TZ)
+    except ValueError:
+        return None
+
+
+def collect_moenv_wind(lat, lon, t, search_km, key):
+    """環境部空品測站逐時風向風速（AQX_P_488 空氣品質指標歷史資料）。"""
+    if not key:
+        FAILED.append("環境部測站風向：未設定 MOENV_API_KEY，未查詢")
+        return []
+    t0, t1 = t - timedelta(hours=3), t + timedelta(hours=1)
+    base = "https://data.moenv.gov.tw/api/v2/aqx_p_488"
+    records = None
+    # 依序嘗試：伺服器端日期篩選（欄位名大小寫兩種）→ 不篩選取最新大量資料
+    for flt in (f"datacreationdate,GR,{t0:%Y-%m-%d %H:%M:%S}|datacreationdate,LE,{t1:%Y-%m-%d %H:%M:%S}",
+                f"DataCreationDate,GR,{t0:%Y-%m-%d %H:%M:%S}|DataCreationDate,LE,{t1:%Y-%m-%d %H:%M:%S}",
+                None):
+        params = dict(api_key=key, format="JSON", limit=1000)
+        if flt:
+            params["filters"] = flt
+        try:
+            js = http("GET", base, params=params, timeout=60).json()
+        except Exception as e:
+            print(f"  [moenv] 查詢失敗 filters={flt}: {e}", file=sys.stderr)
+            continue
+        recs = js.get("records", js) if isinstance(js, dict) else js
+        if isinstance(recs, list) and recs:
+            print(f"  [moenv] filters={flt} → {len(recs)} 筆；欄位：{list(recs[0].keys())}", file=sys.stderr)
+            inwin = [r for r in recs if (d := _parse_ts(_pick(r, "datacreationdate", "publishtime")))
+                     and t0 <= d <= t1]
+            if inwin:
+                records = inwin
+                break
+            print(f"  [moenv] 回傳資料不在 {t0:%m-%d %H:%M}~{t1:%m-%d %H:%M} 內，換下一種查詢", file=sys.stderr)
+        else:
+            print(f"  [moenv] filters={flt} → 無資料：{str(js)[:200]}", file=sys.stderr)
+    if not records:
+        FAILED.append("環境部測站風向：查無事件時段資料（詳見 Actions log 的 [moenv]）")
+        return []
+    out = []
+    for r in records:
+        la, lo = _num(_pick(r, "latitude")), _num(_pick(r, "longitude"))
+        wd, ws = _num(_pick(r, "winddirec", "wind_direc")), _num(_pick(r, "windspeed", "wind_speed"))
+        if la is None or lo is None or wd is None or ws is None:
+            continue
+        dist = haversine(lat, lon, la, lo)
+        if dist <= search_km:
+            out.append(dict(source="環境部", station=_pick(r, "sitename") or "?", lat=la, lon=lo,
+                            time=_parse_ts(_pick(r, "datacreationdate", "publishtime")).isoformat(timespec="minutes"),
+                            dir=wd % 360, speed=ws, dist_km=round(dist, 2)))
+    return out
+
+
+def collect_cwa_wind(lat, lon, t, search_km, key):
+    """氣象署自動氣象站（O-A0001-001）——API 只提供最新觀測，事件在 90 分鐘內才有用。"""
+    if not key:
+        FAILED.append("氣象署測站風向：未設定 CWA_API_KEY，未查詢")
+        return []
+    if abs((datetime.now(TZ) - t).total_seconds()) > 5400:
+        print("  [cwa] 事件時間距今超過 90 分鐘，氣象署 API 僅提供最新觀測，略過", file=sys.stderr)
+        return []
+    js = http("GET", "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001",
+              params=dict(Authorization=key, format="JSON"), timeout=60).json()
+    out = []
+    for st in js.get("records", {}).get("Station", []):
+        coords = st.get("GeoInfo", {}).get("Coordinates", [])
+        c = next((c for c in coords if "WGS84" in str(c.get("CoordinateName", ""))), coords[0] if coords else {})
+        la, lo = _num(c.get("StationLatitude")), _num(c.get("StationLongitude"))
+        we = st.get("WeatherElement", {})
+        wd, ws = _num(we.get("WindDirection")), _num(we.get("WindSpeed"))
+        if None in (la, lo, wd, ws):
+            continue
+        dist = haversine(lat, lon, la, lo)
+        if dist <= search_km:
+            out.append(dict(source="氣象署", station=st.get("StationName", "?"), lat=la, lon=lo,
+                            time=str(st.get("ObsTime", {}).get("DateTime", ""))[:16],
+                            dir=wd % 360, speed=ws, dist_km=round(dist, 2)))
+    print(f"  [cwa] 範圍內 {len(out)} 站", file=sys.stderr)
+    return out
+
+
+def station_wind(obs):
+    """各測站先做時間向量平均，再以 1/d² 加權得到代表風向。"""
+    by = {}
+    for o in obs:
+        by.setdefault((o["source"], o["station"]), []).append(o)
+    stations, X, Y, W = [], 0.0, 0.0, 0.0
+    for (src, name), rows in by.items():
+        x = sum(r["speed"] * math.sin(math.radians(r["dir"])) for r in rows) / len(rows)
+        y = sum(r["speed"] * math.cos(math.radians(r["dir"])) for r in rows) / len(rows)
+        spd = sum(r["speed"] for r in rows) / len(rows)
+        d = (math.degrees(math.atan2(x, y)) + 360) % 360
+        # 風向穩定度：向量平均風速/純量平均風速（1=風向一致，接近0=風向亂或靜風）
+        steady = math.hypot(x, y) / spd if spd > 0 else 0
+        r0 = rows[0]
+        stations.append(dict(source=src, station=name, lat=r0["lat"], lon=r0["lon"], dist_km=r0["dist_km"],
+                             dir=d, speed=spd, steady=steady, n=len(rows),
+                             hourly=sorted(((r["time"][11:16], r["dir"], r["speed"]) for r in rows))))
+        w = 1 / max(r0["dist_km"], 0.5) ** 2
+        X, Y, W = X + w * x, Y + w * y, W + w
+    stations.sort(key=lambda s: s["dist_km"])
+    if not stations:
+        return None, []
+    d = (math.degrees(math.atan2(X / W, Y / W)) + 360) % 360
+    return dict(dir=d, speed=sum(s["speed"] for s in stations) / len(stations), precip=0.0,
+                hours=max(s["n"] for s in stations), source=f"測站（{len(stations)} 站距離加權）"), stations
+
+
 def in_taiwan(lat, lon):
     return any(a <= lat <= b and c <= lon <= d for a, b, c, d in TAIWAN_BOXES)
 
@@ -447,7 +585,7 @@ def sat_links(lat, lon, t):
 
 
 # ---------------------------------------------------------------- 地圖
-def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir):
+def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, stations=(), model_wind=None):
     m = folium.Map(location=[lat, lon], zoom_start=12, tiles=None)
     for i, (name, url, attr) in enumerate(BASEMAPS):
         folium.TileLayer(url, name=name, attr=attr, max_zoom=19, show=(i == 0), overlay=False,
@@ -470,6 +608,23 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir):
                                                                                     int(wind["dir"]) + 46, 5)]
         folium.Polygon(pts, color="#ff7f0e", weight=1, fill=True, fill_opacity=0.12,
                        tooltip=f"上風處扇區（風自{compass(wind['dir'])}方 {wind['dir']:.0f}° 吹來）").add_to(m)
+
+    if stations:
+        sg = folium.FeatureGroup(name="🧭 測站風向（線指向風吹去的方向）").add_to(m)
+        for st in stations:
+            tip = destination(st["lat"], st["lon"], (st["dir"] + 180) % 360, 0.4 + 0.25 * min(st["speed"], 8))
+            col = "#1f77b4" if st["source"] == "環境部" else "#2ca02c"
+            folium.PolyLine([[st["lat"], st["lon"]], list(tip)], color=col, weight=4).add_to(sg)
+            rows = "".join(f"<tr><td>{h}</td><td>{compass(d)} {d:.0f}°</td><td>{v:.1f}</td></tr>"
+                           for h, d, v in st["hourly"])
+            folium.CircleMarker([st["lat"], st["lon"]], radius=6, color=col, fill=True, fill_opacity=1,
+                                tooltip=f"{st['source']} {st['station']}：自{compass(st['dir'])} {st['speed']:.1f} m/s",
+                                popup=folium.Popup(
+                                    f"<b>{st['source']} {html.escape(st['station'])}</b>（距 {st['dist_km']} km）<br>"
+                                    f"平均：自{compass(st['dir'])}方 {st['dir']:.0f}°，{st['speed']:.1f} m/s，"
+                                    f"穩定度 {st['steady']:.2f}<table border=1 style=border-collapse:collapse>"
+                                    f"<tr><th>時</th><th>風向</th><th>m/s</th></tr>{rows}</table>",
+                                    max_width=260)).add_to(sg)
 
     groups = {}
     colors = {c: v[1] for c, v in OSM_CATEGORIES.items()}
@@ -514,9 +669,17 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir):
          "<script>if(window.innerWidth>800)document.getElementById('pt-panel').open=true;</script>",
          f"{lat:.5f}, {lon:.5f}　半徑 {radius:g} km<br>"]
     if wind:
-        src = "手動輸入" if wind.get("manual") else "Open-Meteo 模式網格值"
-        h.append(f"風：自{compass(wind['dir'])}方 {wind['dir']:.0f}°，{wind['speed']:.1f} m/s，"
-                 f"前3h降雨 {wind.get('precip', 0):.1f} mm（{src}）<br>")
+        src = "手動輸入" if wind.get("manual") else wind.get("source", "Open-Meteo 模式網格值")
+        h.append(f"<b>判定用風向</b>：自{compass(wind['dir'])}方 {wind['dir']:.0f}°，{wind['speed']:.1f} m/s（{src}）<br>")
+        if model_wind and model_wind is not wind:
+            diff = angdiff(model_wind["dir"], wind["dir"])
+            h.append(f"模式風（Open-Meteo）：自{compass(model_wind['dir'])}方 {model_wind['dir']:.0f}°，"
+                     f"{model_wind['speed']:.1f} m/s，與判定風向差 {diff:.0f}°"
+                     f"{'（差異大，上風判斷請保守看待）' if diff > 45 else ''}<br>")
+        if stations:
+            h.append("<details><summary>測站風向（事件前3h～後1h平均）</summary>" + "<br>".join(
+                f"{s['source']} {html.escape(s['station'])} {s['dist_km']} km：自{compass(s['dir'])} {s['dir']:.0f}° "
+                f"{s['speed']:.1f} m/s{'，風向不穩' if s['steady'] < 0.6 else ''}" for s in stations) + "</details>")
     else:
         h.append("<b style=color:#d62728>風：氣象資料取得失敗 → 無法判斷上風處</b>"
                  "（可用 --wind-dir/--wind-speed 手動輸入測站風向）<br>")
@@ -593,10 +756,17 @@ def main():
             FAILED.append(f"{label}：{str(e)[:150]}")
             return default
 
+    search_km = max(15.0, a.radius)
+    obs = safe("環境部測站風向", lambda: collect_moenv_wind(a.lat, a.lon, t, search_km, os.getenv("MOENV_API_KEY", "").strip()), [])
+    obs += safe("氣象署測站風向", lambda: collect_cwa_wind(a.lat, a.lon, t, search_km, os.getenv("CWA_API_KEY", "").strip()), [])
+    st_wind, stations = station_wind(obs)
+    model_wind = safe("模式風（Open-Meteo）", lambda: collect_wind(a.lat, a.lon, t), None)
+    if model_wind:
+        model_wind["source"] = "Open-Meteo 模式網格值"
     if a.wind_dir is not None:
         wind = dict(dir=a.wind_dir % 360, speed=a.wind_speed, precip=0.0, hours=0, manual=True)
     else:
-        wind = safe("氣象", lambda: collect_wind(a.lat, a.lon, t), None)
+        wind = st_wind or model_wind  # 優先用測站，沒有才用模式
     sources = safe("OSM 固定源/施工/廟宇", lambda: collect_osm(a.lat, a.lon, a.radius), [])
     sources += collect_extra(a.extra_sources)
     for s in sources:
@@ -612,17 +782,20 @@ def main():
     write_csv(out / "sources.csv", sources)
     write_csv(out / "fires.csv", fires)
     write_csv(out / "news.csv", news)
+    write_csv(out / "wind_obs.csv", obs)
     summary = dict(lat=a.lat, lon=a.lon, time=t.isoformat(), radius_km=a.radius, wind=wind, places=places,
                    n_sources=len(sources), n_upwind=sum(s["upwind"] for s in sources),
                    n_fires=len(fires), n_fires_industrial=sum(f.get("industrial", False) for f in fires),
-                   n_news=len(news), n_news_relevant=sum(n["relevant"] for n in news), failed=FAILED)
+                   n_news=len(news), n_news_relevant=sum(n["relevant"] for n in news), failed=FAILED,
+                   model_wind=model_wind,
+                   stations=[{k: v for k, v in s.items() if k != "hourly"} for s in stations])
     (out / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    build_map(a.lat, a.lon, a.radius, t, wind, sources, fires, news, places, out)
+    build_map(a.lat, a.lon, a.radius, t, wind, sources, fires, news, places, out, stations, model_wind)
 
     with open(out / "summary.md", "w", encoding="utf-8") as f:
         f.write(f"## 污染源溯源 {t:%Y-%m-%d %H:%M}\n\n- 位置：{a.lat}, {a.lon}（半徑 {a.radius:g} km）\n"
                 f"- 固定源/設施：{len(sources)}（上風處 {summary['n_upwind']}）\n- FIRMS 火點：{len(fires)}（疑似工業熱源 {summary['n_fires_industrial']}）\n"
-                f"- 新聞線索：{len(news)}（疑似相關 {summary['n_news_relevant']}）\n- 風：{'自%s方 %.0f°，%.1f m/s' % (compass(wind['dir']), wind['dir'], wind['speed']) if wind else '無資料'}\n"
+                f"- 新聞線索：{len(news)}（疑似相關 {summary['n_news_relevant']}）\n- 風：{'自%s方 %.0f°，%.1f m/s（%s）' % (compass(wind['dir']), wind['dir'], wind['speed'], '手動' if wind.get('manual') else wind.get('source', '')) if wind else '無資料'}\n"
                 + ("".join(f"- ⚠ {x}\n" for x in FAILED) if FAILED else "")
                 + (f"\n🗺️ 互動地圖：{os.getenv('MAP_URL')}\n" if os.getenv("MAP_URL")
                    else "\n下載 Artifact 內的 `map.html` 以瀏覽互動地圖。\n"))

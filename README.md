@@ -1,5 +1,9 @@
 # 污染源溯源資料收集
 
+🗺️ **[最新一次溯源地圖](https://h2015dk.github.io/pollution_tracer/latest/map.html)**　｜　📋 **[歷次紀錄](https://h2015dk.github.io/pollution_tracer/)**
+
+（每次執行完約 1–2 分鐘更新；沒看到新結果請重新整理）
+
 GitHub → Actions → "Pollution Source Trace" → Run workflow，填入經緯度與時間。
 完成後在該次執行的 Summary 點「互動地圖」網址即可瀏覽（GitHub Pages，免下載）；
 歷次紀錄：`https://<帳號>.github.io/pollution_tracer/`。Artifact 仍保留作為備份。
