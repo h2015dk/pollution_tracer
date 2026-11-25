@@ -1,0 +1,45 @@
+name: Update OSM Taiwan snapshot
+
+# 每月更新一次本地 OSM 污染源快照（data/osm_taiwan.csv.gz），
+# trace.py 有快照時就不必在執行當下查 Overpass（公用 Overpass 常 502/逾時）。
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 19 1 * *"   # 每月 2 日 03:17（臺北時間）
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          sudo apt-get update -q && sudo apt-get install -y -q osmium-tool
+          pip install osmium
+      - name: Download Taiwan extract (Geofabrik)
+        run: curl -fSL -o taiwan.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
+      - name: Filter tags
+        run: |
+          osmium tags-filter taiwan.osm.pbf \
+            nwr/landuse=industrial,landfill,quarry,construction \
+            nwr/man_made=works,chimney,storage_tank,flare,wastewater_plant \
+            nwr/power=plant,generator \
+            nwr/amenity=waste_transfer_station,fuel,crematorium,place_of_worship \
+            nwr/industrial=concrete_plant \
+            w/highway=construction \
+            -o filtered.osm.pbf --overwrite
+      - name: Build snapshot
+        run: python scripts/build_osm_taiwan.py filtered.osm.pbf data/osm_taiwan.csv.gz
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data/osm_taiwan.csv.gz data/osm_taiwan.meta.json
+          git commit -m "Update OSM Taiwan snapshot" || echo "no changes"
+          git push
