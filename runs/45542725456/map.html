@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_60937e17c1bd3c6b8bb239dfbd010711 {
+                    position: relative;
+                    width: 100.0vw;
+                    height: 100.0vh;
+
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>/*
+ * Glyphicons Halflings -- the icon font used by folium's default Awesome Markers
+ * (Icon(prefix="glyphicon")). Extracted from Bootstrap 3's glyphicon rules only.
+ *
+ * folium previously loaded netdna's bootstrap-glyphicons.css, which despite its
+ * name ships a full Bootstrap-3 base stylesheet (normalize reset + global `body`
+ * rules) that leaked onto the host page (GH-1820). This file provides just the
+ * @font-face and .glyphicon/.glyphicon-* rules needed for the markers, with no
+ * page-wide side effects. Font files are served from jsDelivr.
+ */
+@font-face{font-family:'Glyphicons Halflings';src:url('https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/fonts/glyphicons-halflings-regular.eot');src:url('https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/fonts/glyphicons-halflings-regular.eot?#iefix') format('embedded-opentype'),url('https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/fonts/glyphicons-halflings-regular.woff') format('woff'),url('https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/fonts/glyphicons-halflings-regular.ttf') format('truetype'),url('https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/fonts/glyphicons-halflings-regular.svg#glyphicons-halflingsregular') format('svg');}.glyphicon{position:relative;top:1px;display:inline-block;font-family:'Glyphicons Halflings';font-style:normal;font-weight:normal;line-height:1;-webkit-font-smoothing:antialiased;}
+.glyphicon-asterisk:before{content:"\2a";}
+.glyphicon-plus:before{content:"\2b";}
+.glyphicon-euro:before{content:"\20ac";}
+.glyphicon-minus:before{content:"\2212";}
+.glyphicon-cloud:before{content:"\2601";}
+.glyphicon-envelope:before{content:"\2709";}
+.glyphicon-pencil:before{content:"\270f";}
+.glyphicon-glass:before{content:"\e001";}
+.glyphicon-music:before{content:"\e002";}
+.glyphicon-search:before{content:"\e003";}
+.glyphicon-heart:before{content:"\e005";}
+.glyphicon-star:before{content:"\e006";}
+.glyphicon-star-empty:before{content:"\e007";}
+.glyphicon-user:before{content:"\e008";}
+.glyphicon-film:before{content:"\e009";}
+.glyphicon-th-large:before{content:"\e010";}
+.glyphicon-th:before{content:"\e011";}
+.glyphicon-th-list:before{content:"\e012";}
+.glyphicon-ok:before{content:"\e013";}
+.glyphicon-remove:before{content:"\e014";}
+.glyphicon-zoom-in:before{content:"\e015";}
+.glyphicon-zoom-out:before{content:"\e016";}
+.glyphicon-off:before{content:"\e017";}
+.glyphicon-signal:before{content:"\e018";}
+.glyphicon-cog:before{content:"\e019";}
+.glyphicon-trash:before{content:"\e020";}
+.glyphicon-home:before{content:"\e021";}
+.glyphicon-file:before{content:"\e022";}
+.glyphicon-time:before{content:"\e023";}
+.glyphicon-road:before{content:"\e024";}
+.glyphicon-download-alt:before{content:"\e025";}
+.glyphicon-download:before{content:"\e026";}
+.glyphicon-upload:before{content:"\e027";}
+.glyphicon-inbox:before{content:"\e028";}
+.glyphicon-play-circle:before{content:"\e029";}
+.glyphicon-repeat:before{content:"\e030";}
+.glyphicon-refresh:before{content:"\e031";}
+.glyphicon-list-alt:before{content:"\e032";}
+.glyphicon-flag:before{content:"\e034";}
+.glyphicon-headphones:before{content:"\e035";}
+.glyphicon-volume-off:before{content:"\e036";}
+.glyphicon-volume-down:before{content:"\e037";}
+.glyphicon-volume-up:before{content:"\e038";}
+.glyphicon-qrcode:before{content:"\e039";}
+.glyphicon-barcode:before{content:"\e040";}
+.glyphicon-tag:before{content:"\e041";}
+.glyphicon-tags:before{content:"\e042";}
+.glyphicon-book:before{content:"\e043";}
+.glyphicon-print:before{content:"\e045";}
+.glyphicon-font:before{content:"\e047";}
+.glyphicon-bold:before{content:"\e048";}
+.glyphicon-italic:before{content:"\e049";}
+.glyphicon-text-height:before{content:"\e050";}
+.glyphicon-text-width:before{content:"\e051";}
+.glyphicon-align-left:before{content:"\e052";}
+.glyphicon-align-center:before{content:"\e053";}
+.glyphicon-align-right:before{content:"\e054";}
+.glyphicon-align-justify:before{content:"\e055";}
+.glyphicon-list:before{content:"\e056";}
+.glyphicon-indent-left:before{content:"\e057";}
+.glyphicon-indent-right:before{content:"\e058";}
+.glyphicon-facetime-video:before{content:"\e059";}
+.glyphicon-picture:before{content:"\e060";}
+.glyphicon-map-marker:before{content:"\e062";}
+.glyphicon-adjust:before{content:"\e063";}
+.glyphicon-tint:before{content:"\e064";}
+.glyphicon-edit:before{content:"\e065";}
+.glyphicon-share:before{content:"\e066";}
+.glyphicon-check:before{content:"\e067";}
+.glyphicon-move:before{content:"\e068";}
+.glyphicon-step-backward:before{content:"\e069";}
+.glyphicon-fast-backward:before{content:"\e070";}
+.glyphicon-backward:before{content:"\e071";}
+.glyphicon-play:before{content:"\e072";}
+.glyphicon-pause:before{content:"\e073";}
+.glyphicon-stop:before{content:"\e074";}
+.glyphicon-forward:before{content:"\e075";}
+.glyphicon-fast-forward:before{content:"\e076";}
+.glyphicon-step-forward:before{content:"\e077";}
+.glyphicon-eject:before{content:"\e078";}
+.glyphicon-chevron-left:before{content:"\e079";}
+.glyphicon-chevron-right:before{content:"\e080";}
+.glyphicon-plus-sign:before{content:"\e081";}
+.glyphicon-minus-sign:before{content:"\e082";}
+.glyphicon-remove-sign:before{content:"\e083";}
+.glyphicon-ok-sign:before{content:"\e084";}
+.glyphicon-question-sign:before{content:"\e085";}
+.glyphicon-info-sign:before{content:"\e086";}
+.glyphicon-screenshot:before{content:"\e087";}
+.glyphicon-remove-circle:before{content:"\e088";}
+.glyphicon-ok-circle:before{content:"\e089";}
+.glyphicon-ban-circle:before{content:"\e090";}
+.glyphicon-arrow-left:before{content:"\e091";}
+.glyphicon-arrow-right:before{content:"\e092";}
+.glyphicon-arrow-up:before{content:"\e093";}
+.glyphicon-arrow-down:before{content:"\e094";}
+.glyphicon-share-alt:before{content:"\e095";}
+.glyphicon-resize-full:before{content:"\e096";}
+.glyphicon-resize-small:before{content:"\e097";}
+.glyphicon-exclamation-sign:before{content:"\e101";}
+.glyphicon-gift:before{content:"\e102";}
+.glyphicon-leaf:before{content:"\e103";}
+.glyphicon-eye-open:before{content:"\e105";}
+.glyphicon-eye-close:before{content:"\e106";}
+.glyphicon-warning-sign:before{content:"\e107";}
+.glyphicon-plane:before{content:"\e108";}
+.glyphicon-random:before{content:"\e110";}
+.glyphicon-comment:before{content:"\e111";}
+.glyphicon-magnet:before{content:"\e112";}
+.glyphicon-chevron-up:before{content:"\e113";}
+.glyphicon-chevron-down:before{content:"\e114";}
+.glyphicon-retweet:before{content:"\e115";}
+.glyphicon-shopping-cart:before{content:"\e116";}
+.glyphicon-folder-close:before{content:"\e117";}
+.glyphicon-folder-open:before{content:"\e118";}
+.glyphicon-resize-vertical:before{content:"\e119";}
+.glyphicon-resize-horizontal:before{content:"\e120";}
+.glyphicon-hdd:before{content:"\e121";}
+.glyphicon-bullhorn:before{content:"\e122";}
+.glyphicon-certificate:before{content:"\e124";}
+.glyphicon-thumbs-up:before{content:"\e125";}
+.glyphicon-thumbs-down:before{content:"\e126";}
+.glyphicon-hand-right:before{content:"\e127";}
+.glyphicon-hand-left:before{content:"\e128";}
+.glyphicon-hand-up:before{content:"\e129";}
+.glyphicon-hand-down:before{content:"\e130";}
+.glyphicon-circle-arrow-right:before{content:"\e131";}
+.glyphicon-circle-arrow-left:before{content:"\e132";}
+.glyphicon-circle-arrow-up:before{content:"\e133";}
+.glyphicon-circle-arrow-down:before{content:"\e134";}
+.glyphicon-globe:before{content:"\e135";}
+.glyphicon-tasks:before{content:"\e137";}
+.glyphicon-filter:before{content:"\e138";}
+.glyphicon-fullscreen:before{content:"\e140";}
+.glyphicon-dashboard:before{content:"\e141";}
+.glyphicon-heart-empty:before{content:"\e143";}
+.glyphicon-link:before{content:"\e144";}
+.glyphicon-phone:before{content:"\e145";}
+.glyphicon-usd:before{content:"\e148";}
+.glyphicon-gbp:before{content:"\e149";}
+.glyphicon-sort:before{content:"\e150";}
+.glyphicon-sort-by-alphabet:before{content:"\e151";}
+.glyphicon-sort-by-alphabet-alt:before{content:"\e152";}
+.glyphicon-sort-by-order:before{content:"\e153";}
+.glyphicon-sort-by-order-alt:before{content:"\e154";}
+.glyphicon-sort-by-attributes:before{content:"\e155";}
+.glyphicon-sort-by-attributes-alt:before{content:"\e156";}
+.glyphicon-unchecked:before{content:"\e157";}
+.glyphicon-expand:before{content:"\e158";}
+.glyphicon-collapse-down:before{content:"\e159";}
+.glyphicon-collapse-up:before{content:"\e160";}
+.glyphicon-log-in:before{content:"\e161";}
+.glyphicon-flash:before{content:"\e162";}
+.glyphicon-log-out:before{content:"\e163";}
+.glyphicon-new-window:before{content:"\e164";}
+.glyphicon-record:before{content:"\e165";}
+.glyphicon-save:before{content:"\e166";}
+.glyphicon-open:before{content:"\e167";}
+.glyphicon-saved:before{content:"\e168";}
+.glyphicon-import:before{content:"\e169";}
+.glyphicon-export:before{content:"\e170";}
+.glyphicon-send:before{content:"\e171";}
+.glyphicon-floppy-disk:before{content:"\e172";}
+.glyphicon-floppy-saved:before{content:"\e173";}
+.glyphicon-floppy-remove:before{content:"\e174";}
+.glyphicon-floppy-save:before{content:"\e175";}
+.glyphicon-floppy-open:before{content:"\e176";}
+.glyphicon-credit-card:before{content:"\e177";}
+.glyphicon-transfer:before{content:"\e178";}
+.glyphicon-cutlery:before{content:"\e179";}
+.glyphicon-header:before{content:"\e180";}
+.glyphicon-compressed:before{content:"\e181";}
+.glyphicon-earphone:before{content:"\e182";}
+.glyphicon-phone-alt:before{content:"\e183";}
+.glyphicon-tower:before{content:"\e184";}
+.glyphicon-stats:before{content:"\e185";}
+.glyphicon-sd-video:before{content:"\e186";}
+.glyphicon-hd-video:before{content:"\e187";}
+.glyphicon-subtitles:before{content:"\e188";}
+.glyphicon-sound-stereo:before{content:"\e189";}
+.glyphicon-sound-dolby:before{content:"\e190";}
+.glyphicon-sound-5-1:before{content:"\e191";}
+.glyphicon-sound-6-1:before{content:"\e192";}
+.glyphicon-sound-7-1:before{content:"\e193";}
+.glyphicon-copyright-mark:before{content:"\e194";}
+.glyphicon-registration-mark:before{content:"\e195";}
+.glyphicon-cloud-download:before{content:"\e197";}
+.glyphicon-cloud-upload:before{content:"\e198";}
+.glyphicon-tree-conifer:before{content:"\e199";}
+.glyphicon-tree-deciduous:before{content:"\e200";}
+.glyphicon-briefcase:before{content:"\1f4bc";}
+.glyphicon-calendar:before{content:"\1f4c5";}
+.glyphicon-pushpin:before{content:"\1f4cc";}
+.glyphicon-paperclip:before{content:"\1f4ce";}
+.glyphicon-camera:before{content:"\1f4f7";}
+.glyphicon-lock:before{content:"\1f512";}
+.glyphicon-bell:before{content:"\1f514";}
+.glyphicon-bookmark:before{content:"\1f516";}
+.glyphicon-fire:before{content:"\1f525";}
+.glyphicon-wrench:before{content:"\1f527";}
+</style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+    
+            
+        
+    
+            
+        
+    
+            
+        
+</head>
+<body>
+    
+    <details id='pt-panel' style='position:fixed;bottom:10px;left:10px;z-index:9999;width:min(340px,85vw);max-height:70vh;overflow:auto;background:#fff;padding:8px 10px;border:1px solid #888;border-radius:6px;font:12px/1.5 sans-serif'><summary style='cursor:pointer'><b>污染源溯源 2026-11-22 14:00</b>（點此展開/收合）</summary><script>if(window.innerWidth>800)document.getElementById('pt-panel').open=true;</script>25.03359, 121.07489　半徑 10 km<br>風：自東北方 64°，6.5 m/s，前3h降雨 0.0 mm（Open-Meteo 模式網格值）<br><hr><b style=color:#d62728>⚠ 資料查詢失敗（以下類別為「未取得」，不是 0 筆）</b><br>OSM 工業區/工廠：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）<br>OSM 電廠/發電設施：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）<br>OSM 加油站(VOC)：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）<br>OSM 殯葬/火化：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）<br>OSM 廟宇(香燭/金爐/鞭炮/繞境)：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）<br>OSM 工地(建案/營建)：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）<br>OSM 道路施工：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）<hr><b>固定源統計</b><br>煙囪/儲槽/燃燒塔：23<br>廢棄物/掩埋/污水處理：6<br>砂石/採礦/混凝土：1<br>🔥 火點：2（疑似工業熱源 0，灰色）<hr><b>上風處最近的工業/能源類污染源</b><br>2.8 km 東北｜(未命名)<br>5.3 km 東北｜觀音產業園區汙水處理廠<br>6.4 km 東北｜(未命名)<br>6.4 km 東北｜(未命名)<br>7.7 km 東北｜保障垃圾掩埋場<br>8.3 km 東北｜保障土石堆置場<hr><b>事件線索（新聞，觀音里、樹林里、保障里、廣興里、廣福里、白沙屯、富林里、塔腳里、桃園市）</b><br>11-22T16:31 <a href='https://news.google.com/rss/articles/CBMiowNBVV95cUxNM1BvelRHUWJmMy0zYXJGb3BSNWF5LVE0NnJDUFFsbkJPQk5pcVprclpNZ0VkU0REdTNRZkYwY3ZmWXlWSXdiUElCbi1RVWdxNHdVUEh1VFVBNkRncWtUVGJhYWd6ZVZRamx4dm9GZUd4NFZBUzA5QThNZFIzRV9NOFRjbU5BVWxfYm83WTA3TE5nM0tMWXhRdm9IOFZGVE5zZjJjc21YS2RxaEtoUUtra2poNnd2TTZXdWpFN2xWbjcyUTZwV1M2SnloYUtSNDU2WWVjMU5fN1lzZzN4Z0lsRDc0cWxTT0JqZUQ0NkJCMUd3UzNNUXlwQlBpZjNJdUpsd25xSThIZGtZZUVXajJBdW5XZXhkX29ER25HODBwbXExaEFRc0c1SU1UMWZNTU5JSW93VFB2cEc4clB1OEJuZ2lNdkZGYXltWVJPNHRsOWRwalQzeVhkbld6cEdMMWpHTS1abXdGbXl5Qi1iN2dRYmxJdGsxNGRFX3F5c01MbEtzUl9qcWszdEdIYW1rQUlyUnFtVy1LdTl1VjE5ejdiaGpGTQ?oc=5' target='_blank'>沖繩首里城正殿完成火災後復修周一起對外開放 殿內消防系統升級 - TVB</a> <span style=color:#999>[事件時間後發布]</span><br>11-20T16:26 <a href='https://news.google.com/rss/articles/CBMiiwFBVV95cUxQWmpXa1kxS1F3WUxYY2t3N1pQUk0wNFM1TTNwLWVZMUxKVUtnTkZoNDJHWjQ2eU5ROEo3SzQ5cnpUOFZDRkJrUXQ0dXJOb2NzYmd0M3VDM0x4V01Cd3p5bjM5VTdoaGg1WjdMOUFUbmxmb1cwRURtNnpWdVYtVDVjaV9RdXFjU1BSZjR3?oc=5' target='_blank'>桃消三民分隊前進日照中心火災搶救演練強化應變- 社會新聞 - PChome Online 新聞</a> <span style=color:#999>[回溯窗前發布]</span><details><summary style=color:#999>疑似無關（廣告/宣導等）4 則</summary>11-22T12:37 <a href='https://news.google.com/rss/articles/CBMibkFVX3lxTE0yUDhjNEtYTG1JaFI5ZHZsVDU1WjdXNEFWWDZLTUw2ckM1N1VkMjZQQ0RmeGh2VFBRMWtVLWNDcWtESDlSZWVZVFdMc0FhYnd3eEZNeUJKUF9RSGxzUmFuSHp0QWo2eVJudjhTM2ZB?oc=5' target='_blank'>全台首創「三心圓」路口降內輪差 桃園奪馬路好行特優 - 中時新聞網</a><br>11-22T11:08 <a href='https://news.google.com/rss/articles/CBMiUEFVX3lxTE5iNmItREFvUHNzODVCLXI4NmhmbGJfMl8zZGRPUXBmU19LcXhVLWUzQ0FxVUpRM1FRNnFoZng1VHQ1UTB3RFY5TElhVXZsem1n0gFWQVVfeXFMTVh0dVJxMGlsaWdUdEJ4OFZmai0zQ1JqNjZxRFY5ODBldGZ2T1ZpZXVsU3hadTNKWDZvbVhOMVhDS0x4ODVpbXZkTHVubkdJdUZqZm1fVVE?oc=5' target='_blank'>桃園4項人本道路工程獲中央肯定 火車站後站改善奪特優 - UDN</a><br>11-22T10:41 <a href='https://news.google.com/rss/articles/CBMiTEFVX3lxTFBfWm5ycXM1X0ZscFJtaVV1anBOdXVIdDUydnZCZVpJWFJCeFgxZm9pODVLR3k5VWt3U0JIY2dwV0hlTEVOOHB4U2JIa3U?oc=5' target='_blank'>桃園養工處獲馬路好行4大獎 中壢龍慈路與龜山大崗國中周邊全上榜 - 桃園電子報</a><br>11-21T08:00 <a href='https://news.google.com/rss/articles/CBMijgFBVV95cUxQZW1nQWpkRTM1VzJkMTMxRXYwalNXWUJhQVVaNmE2dUNkdHdMZjc5MzNEYXVJaTR3T2pjcUNKc1VnVXhkYlBDczREaEdfN2swdGt5TE54M3BRZFJFY2drT3RTQVNiR0FLY0RGb09KeUpPQ2NjbFF0QUJrTGZtYllhRjJCTWRhQUZPRDVnN0t3?oc=5' target='_blank'>住宅火險、地震險｜房貸投保、150萬元地震保障、颱風淹水與漏水理賠- 房產新聞 - PChome Online 新聞</a> <span style=color:#999>[回溯窗前發布]</span></details><br><i>新聞位置不精確，請自行判讀；OSM 資料不等於合法登記清單；OSM 施工路段常有過期標註。</i></details>
+    
+            <div class="folium-map" id="map_60937e17c1bd3c6b8bb239dfbd010711" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_60937e17c1bd3c6b8bb239dfbd010711 = L.map(
+                "map_60937e17c1bd3c6b8bb239dfbd010711",
+                {
+                    center: [25.0335875, 121.0748899],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 12,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_aa271a00c4c5079fe3c604ceeaff9bda = L.tileLayer(
+                "https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u5167\u653f\u90e8\u570b\u571f\u6e2c\u7e6a\u4e2d\u5fc3",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_aa271a00c4c5079fe3c604ceeaff9bda.addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+        
+    
+            var tile_layer_bbd89c52d2d4c077a92749118bb96814 = L.tileLayer(
+                "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; OpenStreetMap contributors \u0026copy; CARTO",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            var tile_layer_fa69c1508ea11d32aa014608c9f84f8f = L.tileLayer(
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "Tiles \u0026copy; Esri",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            var circle_31adefa6e97f7bd06d03cab7c7d5f43b = L.circle(
+                [25.0335875, 121.0748899],
+                {"bubblingMouseEvents": true, "color": "#1f77b4", "dashArray": null, "dashOffset": null, "fill": false, "fillColor": "#1f77b4", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 10000.0, "stroke": true, "weight": 2}
+            ).addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+        
+    
+            circle_31adefa6e97f7bd06d03cab7c7d5f43b.bindTooltip(
+                `<div>
+                     10 km
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_fed2928c77e8ed916eec1de6916a1050 = L.circle(
+                [25.0335875, 121.0748899],
+                {"bubblingMouseEvents": true, "color": "#1f77b4", "dashArray": "6", "dashOffset": null, "fill": false, "fillColor": "#1f77b4", "fillOpacity": 0.2, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 5000.0, "stroke": true, "weight": 1}
+            ).addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+        
+    
+            var marker_178cebd228bf094a697de21005269ec5 = L.marker(
+                [25.0335875, 121.0748899],
+                {
+}
+            ).addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+        
+    
+            var icon_1fa52de8403e7e05a77b6b52ed546611 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "crosshairs",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_e845cad162b0125d3b3e624f339722d7 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_c5d836b1fbacab1e6a987a173b4bbe9a = $(`<div id="html_c5d836b1fbacab1e6a987a173b4bbe9a" style="width: 100.0%; height: 100.0%;">25.03359, 121.07489<br>2026-11-22 14:00</div>`)[0];
+                popup_e845cad162b0125d3b3e624f339722d7.setContent(html_c5d836b1fbacab1e6a987a173b4bbe9a);
+            
+        
+
+        marker_178cebd228bf094a697de21005269ec5.bindPopup(popup_e845cad162b0125d3b3e624f339722d7)
+        ;
+
+        
+    
+    
+            marker_178cebd228bf094a697de21005269ec5.bindTooltip(
+                `<div>
+                     監測點
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                {
+                    const element = marker_178cebd228bf094a697de21005269ec5.getElement();
+                    if (element) {
+                        element.style.width = "";
+                        element.style.height = "";
+                        element.style.marginLeft = "";
+                        element.style.marginTop = "";
+                    }
+                }
+                marker_178cebd228bf094a697de21005269ec5.setIcon(icon_1fa52de8403e7e05a77b6b52ed546611);
+            
+    
+            var polygon_87b730d0d8d874d5d92f05df76a68bef = L.polygon(
+                [[25.0335875, 121.0748899], [25.119114796073717, 121.10558316458314], [25.116365335036964, 121.1136985890711], [25.112985498201102, 121.12151805786726], [25.10900105924541, 121.12898196906717], [25.104442399620147, 121.13603344780124], [25.09934427557024, 121.1426187812131], [25.09374555172383, 121.14868782866354], [25.08768890333153, 121.15419440399597], [25.081220489483037, 121.15909662693441], [25.07438959984941, 121.16335724094411], [25.067248277699164, 121.16694389516367], [25.059850922114123, 121.16982938831354], [25.05225387248394, 121.17199187279586], [25.044514978486966, 121.17341501752269], [25.036693158867436, 121.17408812833945], [25.02884795239557, 121.17400622524539], [25.021039064446605, 121.17317007595089], [25.013325912657937, 121.17158618564861], [25.005767175120145, 121.16926674320942]],
+                {"bubblingMouseEvents": true, "color": "#ff7f0e", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#ff7f0e", "fillOpacity": 0.12, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 1.0, "smoothFactor": 1.0, "stroke": true, "weight": 1}
+            ).addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+        
+    
+            polygon_87b730d0d8d874d5d92f05df76a68bef.bindTooltip(
+                `<div>
+                     上風處扇區（風自東北方 64° 吹來）
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var feature_group_59425ba97b9ab7818c1fca845dcab648 = L.featureGroup(
+                {
+}
+            );
+        
+    
+            var circle_marker_4ef84c1ffd1ff37bc40dfd90600858e9 = L.circleMarker(
+                [25.0305814, 121.0499263],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_18337b74bb44ce714df3b43d2bec22f5 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_fe5f095802bdbbc620e3f2baea167557 = $(`<div id="html_fe5f095802bdbbc620e3f2baea167557" style="width: 100.0%; height: 100.0%;"><b>除礦水儲存槽</b><br>煙囪/儲槽/燃燒塔<br>距離 2.54 km，位於監測點 西方 (262°)<br>來源：OSM osm:way/661443983</div>`)[0];
+                popup_18337b74bb44ce714df3b43d2bec22f5.setContent(html_fe5f095802bdbbc620e3f2baea167557);
+            
+        
+
+        circle_marker_4ef84c1ffd1ff37bc40dfd90600858e9.bindPopup(popup_18337b74bb44ce714df3b43d2bec22f5)
+        ;
+
+        
+    
+    
+            circle_marker_4ef84c1ffd1ff37bc40dfd90600858e9.bindTooltip(
+                `<div>
+                     除礦水儲存槽 (2.5 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_c94a761da750e46a4d11ac880f63fcc0 = L.circleMarker(
+                [25.0304095, 121.0497439],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_cfea271300bebf24283d0b140c59b830 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_a5eeeb3a9577192612de9d5b51d9338e = $(`<div id="html_a5eeeb3a9577192612de9d5b51d9338e" style="width: 100.0%; height: 100.0%;"><b>除礦水儲存槽</b><br>煙囪/儲槽/燃燒塔<br>距離 2.56 km，位於監測點 西方 (262°)<br>來源：OSM osm:way/661443982</div>`)[0];
+                popup_cfea271300bebf24283d0b140c59b830.setContent(html_a5eeeb3a9577192612de9d5b51d9338e);
+            
+        
+
+        circle_marker_c94a761da750e46a4d11ac880f63fcc0.bindPopup(popup_cfea271300bebf24283d0b140c59b830)
+        ;
+
+        
+    
+    
+            circle_marker_c94a761da750e46a4d11ac880f63fcc0.bindTooltip(
+                `<div>
+                     除礦水儲存槽 (2.6 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_d87fc4a4a14c6b8ef7dcd309f03e6cec = L.circleMarker(
+                [25.0302824, 121.0496043],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_c06113f8b8637bbebb20c974e1489b57 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_214de22bf1a1c3da5848bf22652d6f13 = $(`<div id="html_214de22bf1a1c3da5848bf22652d6f13" style="width: 100.0%; height: 100.0%;"><b>除礦水儲存槽</b><br>煙囪/儲槽/燃燒塔<br>距離 2.57 km，位於監測點 西方 (262°)<br>來源：OSM osm:way/661443981</div>`)[0];
+                popup_c06113f8b8637bbebb20c974e1489b57.setContent(html_214de22bf1a1c3da5848bf22652d6f13);
+            
+        
+
+        circle_marker_d87fc4a4a14c6b8ef7dcd309f03e6cec.bindPopup(popup_c06113f8b8637bbebb20c974e1489b57)
+        ;
+
+        
+    
+    
+            circle_marker_d87fc4a4a14c6b8ef7dcd309f03e6cec.bindTooltip(
+                `<div>
+                     除礦水儲存槽 (2.6 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_10134c01cd442495cfddb9d1702ed489 = L.circleMarker(
+                [25.0285086, 121.0492054],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_84013007aec0efb018fae9937c64da7e = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_9fe38782bfae46e9f9e4c84a8aece45d = $(`<div id="html_9fe38782bfae46e9f9e4c84a8aece45d" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 2.65 km，位於監測點 西方 (258°)<br>來源：OSM osm:node/1383535911</div>`)[0];
+                popup_84013007aec0efb018fae9937c64da7e.setContent(html_9fe38782bfae46e9f9e4c84a8aece45d);
+            
+        
+
+        circle_marker_10134c01cd442495cfddb9d1702ed489.bindPopup(popup_84013007aec0efb018fae9937c64da7e)
+        ;
+
+        
+    
+    
+            circle_marker_10134c01cd442495cfddb9d1702ed489.bindTooltip(
+                `<div>
+                     (未命名) (2.6 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_f0f5bd057be811ca3c710c7b443c5aa4 = L.circleMarker(
+                [25.0294802, 121.0488438],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_9bb6fb3cda2ab7ced4d38da8d5510c64 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_90bedd9ddc618edf3bf41ebf458d8d9f = $(`<div id="html_90bedd9ddc618edf3bf41ebf458d8d9f" style="width: 100.0%; height: 100.0%;"><b>冷凝水儲存槽</b><br>煙囪/儲槽/燃燒塔<br>距離 2.66 km，位於監測點 西方 (260°)<br>來源：OSM osm:way/661761186</div>`)[0];
+                popup_9bb6fb3cda2ab7ced4d38da8d5510c64.setContent(html_90bedd9ddc618edf3bf41ebf458d8d9f);
+            
+        
+
+        circle_marker_f0f5bd057be811ca3c710c7b443c5aa4.bindPopup(popup_9bb6fb3cda2ab7ced4d38da8d5510c64)
+        ;
+
+        
+    
+    
+            circle_marker_f0f5bd057be811ca3c710c7b443c5aa4.bindTooltip(
+                `<div>
+                     冷凝水儲存槽 (2.7 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_4be3212190eac93943405be4c5b35efc = L.circleMarker(
+                [25.0293601, 121.048711],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_3fefc778a6dadb32e7956a8c0ebea2e4 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_6650ced5dfbab545fc12b8dfafa37747 = $(`<div id="html_6650ced5dfbab545fc12b8dfafa37747" style="width: 100.0%; height: 100.0%;"><b>冷凝水儲存槽</b><br>煙囪/儲槽/燃燒塔<br>距離 2.68 km，位於監測點 西方 (260°)<br>來源：OSM osm:way/661761184</div>`)[0];
+                popup_3fefc778a6dadb32e7956a8c0ebea2e4.setContent(html_6650ced5dfbab545fc12b8dfafa37747);
+            
+        
+
+        circle_marker_4be3212190eac93943405be4c5b35efc.bindPopup(popup_3fefc778a6dadb32e7956a8c0ebea2e4)
+        ;
+
+        
+    
+    
+            circle_marker_4be3212190eac93943405be4c5b35efc.bindTooltip(
+                `<div>
+                     冷凝水儲存槽 (2.7 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_de23bb4fe00996efef62505f07f2ef02 = L.circleMarker(
+                [25.0292226, 121.0485599],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_66e638a8ba65913219292c1e1be5a8b9 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_6406eee6cf1a03c13154c6f8f4ac5d1e = $(`<div id="html_6406eee6cf1a03c13154c6f8f4ac5d1e" style="width: 100.0%; height: 100.0%;"><b>日用油槽</b><br>煙囪/儲槽/燃燒塔<br>距離 2.70 km，位於監測點 西方 (260°)<br>來源：OSM osm:way/661761182</div>`)[0];
+                popup_66e638a8ba65913219292c1e1be5a8b9.setContent(html_6406eee6cf1a03c13154c6f8f4ac5d1e);
+            
+        
+
+        circle_marker_de23bb4fe00996efef62505f07f2ef02.bindPopup(popup_66e638a8ba65913219292c1e1be5a8b9)
+        ;
+
+        
+    
+    
+            circle_marker_de23bb4fe00996efef62505f07f2ef02.bindTooltip(
+                `<div>
+                     日用油槽 (2.7 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_4a068834031783c8d9e57e83f8f88176 = L.circleMarker(
+                [25.0291148, 121.0484332],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_40cad22e2e9010e2eb9445cc4e229597 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_76f7658203f6f09965dcd720715bc0ef = $(`<div id="html_76f7658203f6f09965dcd720715bc0ef" style="width: 100.0%; height: 100.0%;"><b>日用油槽</b><br>煙囪/儲槽/燃燒塔<br>距離 2.71 km，位於監測點 西方 (259°)<br>來源：OSM osm:way/661761181</div>`)[0];
+                popup_40cad22e2e9010e2eb9445cc4e229597.setContent(html_76f7658203f6f09965dcd720715bc0ef);
+            
+        
+
+        circle_marker_4a068834031783c8d9e57e83f8f88176.bindPopup(popup_40cad22e2e9010e2eb9445cc4e229597)
+        ;
+
+        
+    
+    
+            circle_marker_4a068834031783c8d9e57e83f8f88176.bindTooltip(
+                `<div>
+                     日用油槽 (2.7 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_2eb62abfc26508dc9b4b83fd88129213 = L.circleMarker(
+                [25.0278134, 121.0484592],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_b65bf611e56c7fc85e7d4977edddc800 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_71c37915dca001b1290410a099dc5bf8 = $(`<div id="html_71c37915dca001b1290410a099dc5bf8" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 2.74 km，位於監測點 西方 (256°)<br>來源：OSM osm:node/1383535901</div>`)[0];
+                popup_b65bf611e56c7fc85e7d4977edddc800.setContent(html_71c37915dca001b1290410a099dc5bf8);
+            
+        
+
+        circle_marker_2eb62abfc26508dc9b4b83fd88129213.bindPopup(popup_b65bf611e56c7fc85e7d4977edddc800)
+        ;
+
+        
+    
+    
+            circle_marker_2eb62abfc26508dc9b4b83fd88129213.bindTooltip(
+                `<div>
+                     (未命名) (2.7 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_7cf4b8ec48d1dac746c10ef0b5b619ea = L.circleMarker(
+                [25.0266188, 121.047358],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_b439b470d70602407c25b7922306510b = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_d524cda4f7feb7e1b676fd5540052a44 = $(`<div id="html_d524cda4f7feb7e1b676fd5540052a44" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 2.88 km，位於監測點 西方 (254°)<br>來源：OSM osm:node/1383535890</div>`)[0];
+                popup_b439b470d70602407c25b7922306510b.setContent(html_d524cda4f7feb7e1b676fd5540052a44);
+            
+        
+
+        circle_marker_7cf4b8ec48d1dac746c10ef0b5b619ea.bindPopup(popup_b439b470d70602407c25b7922306510b)
+        ;
+
+        
+    
+    
+            circle_marker_7cf4b8ec48d1dac746c10ef0b5b619ea.bindTooltip(
+                `<div>
+                     (未命名) (2.9 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_5fcba1b0fd802c8ba4f039d8c4cef364 = L.circleMarker(
+                [25.0271189, 121.0470955],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_3700bf6a1977da47154aac5d8ea61cc3 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_64ca92b024be524738638966dfbcb648 = $(`<div id="html_64ca92b024be524738638966dfbcb648" style="width: 100.0%; height: 100.0%;"><b>冷凝水儲存槽</b><br>煙囪/儲槽/燃燒塔<br>距離 2.89 km，位於監測點 西方 (256°)<br>來源：OSM osm:way/661761190</div>`)[0];
+                popup_3700bf6a1977da47154aac5d8ea61cc3.setContent(html_64ca92b024be524738638966dfbcb648);
+            
+        
+
+        circle_marker_5fcba1b0fd802c8ba4f039d8c4cef364.bindPopup(popup_3700bf6a1977da47154aac5d8ea61cc3)
+        ;
+
+        
+    
+    
+            circle_marker_5fcba1b0fd802c8ba4f039d8c4cef364.bindTooltip(
+                `<div>
+                     冷凝水儲存槽 (2.9 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_567c294a276bdac6f904156493e4fa5c = L.circleMarker(
+                [25.0272327, 121.0469679],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_b2b447194026edb92befeba2b2c1a417 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_2eb9624c558ece527d2008f593b0479a = $(`<div id="html_2eb9624c558ece527d2008f593b0479a" style="width: 100.0%; height: 100.0%;"><b>冷凝水儲存槽</b><br>煙囪/儲槽/燃燒塔<br>距離 2.90 km，位於監測點 西方 (256°)<br>來源：OSM osm:way/661761188</div>`)[0];
+                popup_b2b447194026edb92befeba2b2c1a417.setContent(html_2eb9624c558ece527d2008f593b0479a);
+            
+        
+
+        circle_marker_567c294a276bdac6f904156493e4fa5c.bindPopup(popup_b2b447194026edb92befeba2b2c1a417)
+        ;
+
+        
+    
+    
+            circle_marker_567c294a276bdac6f904156493e4fa5c.bindTooltip(
+                `<div>
+                     冷凝水儲存槽 (2.9 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_7b6e0b6c4d09ac46d48b79e2002c5a55 = L.circleMarker(
+                [25.0260206, 121.0467018],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_fa9ebb0da27fdd8bab2004773a3f8209 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_7ac116aee90c13096c7c5b4beb239495 = $(`<div id="html_7ac116aee90c13096c7c5b4beb239495" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 2.96 km，位於監測點 西方 (254°)<br>來源：OSM osm:node/1383535880</div>`)[0];
+                popup_fa9ebb0da27fdd8bab2004773a3f8209.setContent(html_7ac116aee90c13096c7c5b4beb239495);
+            
+        
+
+        circle_marker_7b6e0b6c4d09ac46d48b79e2002c5a55.bindPopup(popup_fa9ebb0da27fdd8bab2004773a3f8209)
+        ;
+
+        
+    
+    
+            circle_marker_7b6e0b6c4d09ac46d48b79e2002c5a55.bindTooltip(
+                `<div>
+                     (未命名) (3.0 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_2bfd140e1288666d2778d3af31f02b65 = L.circleMarker(
+                [25.0251923, 121.0457846],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_dd9f41c7d12e4407889d2733c6086aec = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_4590d02d978d2f577da5b81a8ac9a91c = $(`<div id="html_4590d02d978d2f577da5b81a8ac9a91c" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 3.08 km，位於監測點 西方 (252°)<br>來源：OSM osm:node/1383535846</div>`)[0];
+                popup_dd9f41c7d12e4407889d2733c6086aec.setContent(html_4590d02d978d2f577da5b81a8ac9a91c);
+            
+        
+
+        circle_marker_2bfd140e1288666d2778d3af31f02b65.bindPopup(popup_dd9f41c7d12e4407889d2733c6086aec)
+        ;
+
+        
+    
+    
+            circle_marker_2bfd140e1288666d2778d3af31f02b65.bindTooltip(
+                `<div>
+                     (未命名) (3.1 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_e1a7a7cc921510d458440a4bf056f1a2 = L.circleMarker(
+                [25.0256853, 121.0455367],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_71815e71108ec4dcae9760a431f11d39 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_a8510c1cb3dbdc11627ae7bc9bc42994 = $(`<div id="html_a8510c1cb3dbdc11627ae7bc9bc42994" style="width: 100.0%; height: 100.0%;"><b>冷凝水儲存槽</b><br>煙囪/儲槽/燃燒塔<br>距離 3.08 km，位於監測點 西方 (254°)<br>來源：OSM osm:way/661761194</div>`)[0];
+                popup_71815e71108ec4dcae9760a431f11d39.setContent(html_a8510c1cb3dbdc11627ae7bc9bc42994);
+            
+        
+
+        circle_marker_e1a7a7cc921510d458440a4bf056f1a2.bindPopup(popup_71815e71108ec4dcae9760a431f11d39)
+        ;
+
+        
+    
+    
+            circle_marker_e1a7a7cc921510d458440a4bf056f1a2.bindTooltip(
+                `<div>
+                     冷凝水儲存槽 (3.1 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_127e3ddcab84376632c9f186eeb18365 = L.circleMarker(
+                [25.0258017, 121.045407],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_87dc967ab48b6936f43b5757739412cc = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_f54b7c87a64fd6499205a2f27700e40b = $(`<div id="html_f54b7c87a64fd6499205a2f27700e40b" style="width: 100.0%; height: 100.0%;"><b>冷凝水儲存槽</b><br>煙囪/儲槽/燃燒塔<br>距離 3.09 km，位於監測點 西方 (254°)<br>來源：OSM osm:way/661761192</div>`)[0];
+                popup_87dc967ab48b6936f43b5757739412cc.setContent(html_f54b7c87a64fd6499205a2f27700e40b);
+            
+        
+
+        circle_marker_127e3ddcab84376632c9f186eeb18365.bindPopup(popup_87dc967ab48b6936f43b5757739412cc)
+        ;
+
+        
+    
+    
+            circle_marker_127e3ddcab84376632c9f186eeb18365.bindTooltip(
+                `<div>
+                     冷凝水儲存槽 (3.1 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_0e3222fa3ee201a65a9e142ffc0274c0 = L.circleMarker(
+                [25.0245797, 121.0451284],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_b455209a27d44581baebfd055ca251dc = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_d26bdaa99cf83e8e81d13dd70c7e7f3a = $(`<div id="html_d26bdaa99cf83e8e81d13dd70c7e7f3a" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 3.16 km，位於監測點 西方 (252°)<br>來源：OSM osm:node/1383535803</div>`)[0];
+                popup_b455209a27d44581baebfd055ca251dc.setContent(html_d26bdaa99cf83e8e81d13dd70c7e7f3a);
+            
+        
+
+        circle_marker_0e3222fa3ee201a65a9e142ffc0274c0.bindPopup(popup_b455209a27d44581baebfd055ca251dc)
+        ;
+
+        
+    
+    
+            circle_marker_0e3222fa3ee201a65a9e142ffc0274c0.bindTooltip(
+                `<div>
+                     (未命名) (3.2 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_831aec36245001ded67cc4c0e1a8f3cc = L.circleMarker(
+                [25.0237888, 121.0445399],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_ace086603fc08bebc84fe047932e531d = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_709cf7f6f8d3b84144743782f9ff261b = $(`<div id="html_709cf7f6f8d3b84144743782f9ff261b" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 3.25 km，位於監測點 西方 (250°)<br>來源：OSM osm:node/6192411573</div>`)[0];
+                popup_ace086603fc08bebc84fe047932e531d.setContent(html_709cf7f6f8d3b84144743782f9ff261b);
+            
+        
+
+        circle_marker_831aec36245001ded67cc4c0e1a8f3cc.bindPopup(popup_ace086603fc08bebc84fe047932e531d)
+        ;
+
+        
+    
+    
+            circle_marker_831aec36245001ded67cc4c0e1a8f3cc.bindTooltip(
+                `<div>
+                     (未命名) (3.2 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_707530ab92ed24d9c439a67f0efdb4e0 = L.circleMarker(
+                [25.0234089, 121.0441315],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_9d27f7e2b19bc0dc147330eecf6bc4a7 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_85da308f58daffee920ce7783543fd91 = $(`<div id="html_85da308f58daffee920ce7783543fd91" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 3.30 km，位於監測點 西方 (250°)<br>來源：OSM osm:node/6192411574</div>`)[0];
+                popup_9d27f7e2b19bc0dc147330eecf6bc4a7.setContent(html_85da308f58daffee920ce7783543fd91);
+            
+        
+
+        circle_marker_707530ab92ed24d9c439a67f0efdb4e0.bindPopup(popup_9d27f7e2b19bc0dc147330eecf6bc4a7)
+        ;
+
+        
+    
+    
+            circle_marker_707530ab92ed24d9c439a67f0efdb4e0.bindTooltip(
+                `<div>
+                     (未命名) (3.3 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_268ae7fc7a1d173ffeb826eb03a55753 = L.circleMarker(
+                [25.0231669, 121.0432821],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_8f025c08af59b17547afafea3446b0ad = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_d10e2fee513e2a917d929ed6b5271cc9 = $(`<div id="html_d10e2fee513e2a917d929ed6b5271cc9" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 3.39 km，位於監測點 西方 (250°)<br>來源：OSM osm:node/11770164282</div>`)[0];
+                popup_8f025c08af59b17547afafea3446b0ad.setContent(html_d10e2fee513e2a917d929ed6b5271cc9);
+            
+        
+
+        circle_marker_268ae7fc7a1d173ffeb826eb03a55753.bindPopup(popup_8f025c08af59b17547afafea3446b0ad)
+        ;
+
+        
+    
+    
+            circle_marker_268ae7fc7a1d173ffeb826eb03a55753.bindTooltip(
+                `<div>
+                     (未命名) (3.4 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_bf129128d966382e9c3b3ad461e907cd = L.circleMarker(
+                [25.0172251, 121.0424749],
+                {"bubblingMouseEvents": true, "color": "#8c564b", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_f4af5be306ea1bc792e645dec6b93103 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_b106820dc16dab7797405da1c477f8a4 = $(`<div id="html_b106820dc16dab7797405da1c477f8a4" style="width: 100.0%; height: 100.0%;"><b>中油天然氣隔離站</b><br>煙囪/儲槽/燃燒塔<br>距離 3.74 km，位於監測點 西南方 (241°)<br>來源：OSM osm:way/661443993</div>`)[0];
+                popup_f4af5be306ea1bc792e645dec6b93103.setContent(html_b106820dc16dab7797405da1c477f8a4);
+            
+        
+
+        circle_marker_bf129128d966382e9c3b3ad461e907cd.bindPopup(popup_f4af5be306ea1bc792e645dec6b93103)
+        ;
+
+        
+    
+    
+            circle_marker_bf129128d966382e9c3b3ad461e907cd.bindTooltip(
+                `<div>
+                     中油天然氣隔離站 (3.7 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_2eae69618072cef980496f7bada58978 = L.circleMarker(
+                [25.0631786, 121.1291139],
+                {"bubblingMouseEvents": true, "color": "#d62728", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 7, "stroke": true, "weight": 3}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_d07f5f6db9209661822ccd8f00787600 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_c93478043d57d3bee6ef96b9e5492dff = $(`<div id="html_c93478043d57d3bee6ef96b9e5492dff" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 6.38 km，位於監測點 東北方 (59°)<br><b style=color:#d62728>⚠ 位於上風處</b><br>來源：OSM osm:way/832341843</div>`)[0];
+                popup_d07f5f6db9209661822ccd8f00787600.setContent(html_c93478043d57d3bee6ef96b9e5492dff);
+            
+        
+
+        circle_marker_2eae69618072cef980496f7bada58978.bindPopup(popup_d07f5f6db9209661822ccd8f00787600)
+        ;
+
+        
+    
+    
+            circle_marker_2eae69618072cef980496f7bada58978.bindTooltip(
+                `<div>
+                     (未命名) (6.4 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_ce252a9cbdc0db37d0ad397dd4ad61f3 = L.circleMarker(
+                [25.0633598, 121.1293785],
+                {"bubblingMouseEvents": true, "color": "#d62728", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#8c564b", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 7, "stroke": true, "weight": 3}
+            ).addTo(feature_group_59425ba97b9ab7818c1fca845dcab648);
+        
+    
+        var popup_f956aedb506ebc6a6368ec639637f002 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_962452ff455258292f21b62825594774 = $(`<div id="html_962452ff455258292f21b62825594774" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>煙囪/儲槽/燃燒塔<br>距離 6.41 km，位於監測點 東北方 (59°)<br><b style=color:#d62728>⚠ 位於上風處</b><br>來源：OSM osm:way/832341844</div>`)[0];
+                popup_f956aedb506ebc6a6368ec639637f002.setContent(html_962452ff455258292f21b62825594774);
+            
+        
+
+        circle_marker_ce252a9cbdc0db37d0ad397dd4ad61f3.bindPopup(popup_f956aedb506ebc6a6368ec639637f002)
+        ;
+
+        
+    
+    
+            circle_marker_ce252a9cbdc0db37d0ad397dd4ad61f3.bindTooltip(
+                `<div>
+                     (未命名) (6.4 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            feature_group_59425ba97b9ab7818c1fca845dcab648.addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+        
+    
+            var feature_group_f4c758f0803f6ff5484948e3f99b473a = L.featureGroup(
+                {
+}
+            );
+        
+    
+            var circle_marker_41a7364c12825a1495306adc19ccb1d3 = L.circleMarker(
+                [25.0542849, 121.0910419],
+                {"bubblingMouseEvents": true, "color": "#d62728", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#7f7f7f", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 7, "stroke": true, "weight": 3}
+            ).addTo(feature_group_f4c758f0803f6ff5484948e3f99b473a);
+        
+    
+        var popup_45582c390e6a09ccd0083798773892d0 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_6e76b6186782af0576dc835295a9b683 = $(`<div id="html_6e76b6186782af0576dc835295a9b683" style="width: 100.0%; height: 100.0%;"><b>(未命名)</b><br>廢棄物/掩埋/污水處理<br>距離 2.82 km，位於監測點 東北方 (35°)<br><b style=color:#d62728>⚠ 位於上風處</b><br>來源：OSM osm:way/1002952939</div>`)[0];
+                popup_45582c390e6a09ccd0083798773892d0.setContent(html_6e76b6186782af0576dc835295a9b683);
+            
+        
+
+        circle_marker_41a7364c12825a1495306adc19ccb1d3.bindPopup(popup_45582c390e6a09ccd0083798773892d0)
+        ;
+
+        
+    
+    
+            circle_marker_41a7364c12825a1495306adc19ccb1d3.bindTooltip(
+                `<div>
+                     (未命名) (2.8 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_20c6e4ad95c3a78e313d537b193867f3 = L.circleMarker(
+                [25.0184043, 121.0399288],
+                {"bubblingMouseEvents": true, "color": "#7f7f7f", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#7f7f7f", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_f4c758f0803f6ff5484948e3f99b473a);
+        
+    
+        var popup_fbc5d3604b1197074b382f6918a4f30a = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_05535db1701bcd522acd97bd2ecbcb23 = $(`<div id="html_05535db1701bcd522acd97bd2ecbcb23" style="width: 100.0%; height: 100.0%;"><b>大潭濱海特定工業區廢水處理廠</b><br>廢棄物/掩埋/污水處理<br>距離 3.91 km，位於監測點 西南方 (244°)<br>來源：OSM osm:way/661443951</div>`)[0];
+                popup_fbc5d3604b1197074b382f6918a4f30a.setContent(html_05535db1701bcd522acd97bd2ecbcb23);
+            
+        
+
+        circle_marker_20c6e4ad95c3a78e313d537b193867f3.bindPopup(popup_fbc5d3604b1197074b382f6918a4f30a)
+        ;
+
+        
+    
+    
+            circle_marker_20c6e4ad95c3a78e313d537b193867f3.bindTooltip(
+                `<div>
+                     大潭濱海特定工業區廢水處理廠 (3.9 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_e61b0b3035eaf6fdd2a1de0a6b864162 = L.circleMarker(
+                [25.0191761, 121.0384703],
+                {"bubblingMouseEvents": true, "color": "#7f7f7f", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#7f7f7f", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_f4c758f0803f6ff5484948e3f99b473a);
+        
+    
+        var popup_bce63b0967c49d47de6e641b1f26fc89 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_18a2c1781f8a9659500dcf0a2a70334f = $(`<div id="html_18a2c1781f8a9659500dcf0a2a70334f" style="width: 100.0%; height: 100.0%;"><b>觀音灰渣處理廠</b><br>廢棄物/掩埋/污水處理<br>距離 4.00 km，位於監測點 西南方 (246°)<br>來源：OSM osm:way/661443952</div>`)[0];
+                popup_bce63b0967c49d47de6e641b1f26fc89.setContent(html_18a2c1781f8a9659500dcf0a2a70334f);
+            
+        
+
+        circle_marker_e61b0b3035eaf6fdd2a1de0a6b864162.bindPopup(popup_bce63b0967c49d47de6e641b1f26fc89)
+        ;
+
+        
+    
+    
+            circle_marker_e61b0b3035eaf6fdd2a1de0a6b864162.bindTooltip(
+                `<div>
+                     觀音灰渣處理廠 (4.0 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_0cfdd14e9bc25f7c90d5ccd2176904cf = L.circleMarker(
+                [25.0645648, 121.1143665],
+                {"bubblingMouseEvents": true, "color": "#d62728", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#7f7f7f", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 7, "stroke": true, "weight": 3}
+            ).addTo(feature_group_f4c758f0803f6ff5484948e3f99b473a);
+        
+    
+        var popup_770807f78ea6c112b73e241e23a324a3 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_0d3079f942d1d98cea973bb9eeac2fc1 = $(`<div id="html_0d3079f942d1d98cea973bb9eeac2fc1" style="width: 100.0%; height: 100.0%;"><b>觀音產業園區汙水處理廠</b><br>廢棄物/掩埋/污水處理<br>距離 5.26 km，位於監測點 東北方 (49°)<br><b style=color:#d62728>⚠ 位於上風處</b><br>來源：OSM osm:way/625812734</div>`)[0];
+                popup_770807f78ea6c112b73e241e23a324a3.setContent(html_0d3079f942d1d98cea973bb9eeac2fc1);
+            
+        
+
+        circle_marker_0cfdd14e9bc25f7c90d5ccd2176904cf.bindPopup(popup_770807f78ea6c112b73e241e23a324a3)
+        ;
+
+        
+    
+    
+            circle_marker_0cfdd14e9bc25f7c90d5ccd2176904cf.bindTooltip(
+                `<div>
+                     觀音產業園區汙水處理廠 (5.3 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_a30a0ed61133d32e7c8684f7a5896e17 = L.circleMarker(
+                [25.0749531, 121.1367111],
+                {"bubblingMouseEvents": true, "color": "#d62728", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#7f7f7f", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 7, "stroke": true, "weight": 3}
+            ).addTo(feature_group_f4c758f0803f6ff5484948e3f99b473a);
+        
+    
+        var popup_b86170efa513e276b8da6deae2451617 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_36781209d95b5c1a54270aa169957fa3 = $(`<div id="html_36781209d95b5c1a54270aa169957fa3" style="width: 100.0%; height: 100.0%;"><b>保障垃圾掩埋場</b><br>廢棄物/掩埋/污水處理<br>距離 7.74 km，位於監測點 東北方 (54°)<br><b style=color:#d62728>⚠ 位於上風處</b><br>來源：OSM osm:way/1173196948</div>`)[0];
+                popup_b86170efa513e276b8da6deae2451617.setContent(html_36781209d95b5c1a54270aa169957fa3);
+            
+        
+
+        circle_marker_a30a0ed61133d32e7c8684f7a5896e17.bindPopup(popup_b86170efa513e276b8da6deae2451617)
+        ;
+
+        
+    
+    
+            circle_marker_a30a0ed61133d32e7c8684f7a5896e17.bindTooltip(
+                `<div>
+                     保障垃圾掩埋場 (7.7 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var circle_marker_5e08d06bc478d5693ed68d8de8a0faeb = L.circleMarker(
+                [25.0721954, 121.1451],
+                {"bubblingMouseEvents": true, "color": "#d62728", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#7f7f7f", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 7, "stroke": true, "weight": 3}
+            ).addTo(feature_group_f4c758f0803f6ff5484948e3f99b473a);
+        
+    
+        var popup_c17e47a5ebdc6b5e79a75dec87a389e7 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_4d50c6951d3b7a2fd5576face436c67f = $(`<div id="html_4d50c6951d3b7a2fd5576face436c67f" style="width: 100.0%; height: 100.0%;"><b>保障土石堆置場</b><br>廢棄物/掩埋/污水處理<br>距離 8.27 km，位於監測點 東北方 (59°)<br><b style=color:#d62728>⚠ 位於上風處</b><br>來源：OSM osm:way/988824157</div>`)[0];
+                popup_c17e47a5ebdc6b5e79a75dec87a389e7.setContent(html_4d50c6951d3b7a2fd5576face436c67f);
+            
+        
+
+        circle_marker_5e08d06bc478d5693ed68d8de8a0faeb.bindPopup(popup_c17e47a5ebdc6b5e79a75dec87a389e7)
+        ;
+
+        
+    
+    
+            circle_marker_5e08d06bc478d5693ed68d8de8a0faeb.bindTooltip(
+                `<div>
+                     保障土石堆置場 (8.3 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            feature_group_f4c758f0803f6ff5484948e3f99b473a.addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+        
+    
+            var feature_group_ca5dd60e685a5b7dcb97c2dba3df57d5 = L.featureGroup(
+                {
+}
+            );
+        
+    
+            var circle_marker_222ec6bcd7925e822dbcd88606d71264 = L.circleMarker(
+                [24.9699453, 121.0733332],
+                {"bubblingMouseEvents": true, "color": "#bcbd22", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#bcbd22", "fillOpacity": 0.8, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 4, "stroke": true, "weight": 1}
+            ).addTo(feature_group_ca5dd60e685a5b7dcb97c2dba3df57d5);
+        
+    
+        var popup_15a2a843334d2acc14e168b82656186d = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_91bc2df4eb4702178c74e6c12196c617 = $(`<div id="html_91bc2df4eb4702178c74e6c12196c617" style="width: 100.0%; height: 100.0%;"><b>巨讚實業有限公司</b><br>砂石/採礦/混凝土<br>距離 7.08 km，位於監測點 南方 (181°)<br>來源：OSM osm:way/1013421002</div>`)[0];
+                popup_15a2a843334d2acc14e168b82656186d.setContent(html_91bc2df4eb4702178c74e6c12196c617);
+            
+        
+
+        circle_marker_222ec6bcd7925e822dbcd88606d71264.bindPopup(popup_15a2a843334d2acc14e168b82656186d)
+        ;
+
+        
+    
+    
+            circle_marker_222ec6bcd7925e822dbcd88606d71264.bindTooltip(
+                `<div>
+                     巨讚實業有限公司 (7.1 km)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            feature_group_ca5dd60e685a5b7dcb97c2dba3df57d5.addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+        
+    
+            var feature_group_c91284aa61861ff65add80296059915c = L.featureGroup(
+                {
+}
+            );
+        
+    
+            var marker_329b907618433d01d230d8365d7073fd = L.marker(
+                [24.97589, 121.03909],
+                {
+}
+            ).addTo(feature_group_c91284aa61861ff65add80296059915c);
+        
+    
+            var icon_eefb0d1db54bbd189bb42b79cbeb5a94 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "fire",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_dd9cbe943943ee02e3578487b8c5a1e2 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_bb6de90d6679ee78487e72df47d5f018 = $(`<div id="html_bb6de90d6679ee78487e72df47d5f018" style="width: 100.0%; height: 100.0%;">火點 2026-11-22T01:00+08:00<br><b style=color:#d62728>非已知工業熱源附近，需查證</b><br>信心 n，FRP 0.41 MW<br>VIIRS_NOAA20_NRT</div>`)[0];
+                popup_dd9cbe943943ee02e3578487b8c5a1e2.setContent(html_bb6de90d6679ee78487e72df47d5f018);
+            
+        
+
+        marker_329b907618433d01d230d8365d7073fd.bindPopup(popup_dd9cbe943943ee02e3578487b8c5a1e2)
+        ;
+
+        
+    
+    
+                {
+                    const element = marker_329b907618433d01d230d8365d7073fd.getElement();
+                    if (element) {
+                        element.style.width = "";
+                        element.style.height = "";
+                        element.style.marginLeft = "";
+                        element.style.marginTop = "";
+                    }
+                }
+                marker_329b907618433d01d230d8365d7073fd.setIcon(icon_eefb0d1db54bbd189bb42b79cbeb5a94);
+            
+    
+            var marker_7552c07cacb7240c6a16eb3f7ea1e1ac = L.marker(
+                [24.97361, 121.04336],
+                {
+}
+            ).addTo(feature_group_c91284aa61861ff65add80296059915c);
+        
+    
+            var icon_9549c5bbfc19ca427a5061c82c0068dc = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "fire",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_81652aa34db2153a86fefe3d5c31e2a5 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_c1bbe08cf3d66fe5095001731dfd50f1 = $(`<div id="html_c1bbe08cf3d66fe5095001731dfd50f1" style="width: 100.0%; height: 100.0%;">火點 2026-11-22T01:43+08:00<br><b style=color:#d62728>非已知工業熱源附近，需查證</b><br>信心 n，FRP 0.58 MW<br>VIIRS_NOAA21_NRT</div>`)[0];
+                popup_81652aa34db2153a86fefe3d5c31e2a5.setContent(html_c1bbe08cf3d66fe5095001731dfd50f1);
+            
+        
+
+        marker_7552c07cacb7240c6a16eb3f7ea1e1ac.bindPopup(popup_81652aa34db2153a86fefe3d5c31e2a5)
+        ;
+
+        
+    
+    
+                {
+                    const element = marker_7552c07cacb7240c6a16eb3f7ea1e1ac.getElement();
+                    if (element) {
+                        element.style.width = "";
+                        element.style.height = "";
+                        element.style.marginLeft = "";
+                        element.style.marginTop = "";
+                    }
+                }
+                marker_7552c07cacb7240c6a16eb3f7ea1e1ac.setIcon(icon_9549c5bbfc19ca427a5061c82c0068dc);
+            
+    
+            feature_group_c91284aa61861ff65add80296059915c.addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+        
+    
+            var layer_control_b0c988a9cfade75f5759660a05941372_layers = {
+                base_layers : {
+                    "\u81fa\u7063\u901a\u7528\u96fb\u5b50\u5730\u5716(NLSC)" : tile_layer_aa271a00c4c5079fe3c604ceeaff9bda,
+                    "CartoDB \u6dfa\u8272" : tile_layer_bbd89c52d2d4c077a92749118bb96814,
+                    "Esri \u885b\u661f\u5f71\u50cf" : tile_layer_fa69c1508ea11d32aa014608c9f84f8f,
+                },
+                overlays :  {
+                    "\u7159\u56ea/\u5132\u69fd/\u71c3\u71d2\u5854" : feature_group_59425ba97b9ab7818c1fca845dcab648,
+                    "\u5ee2\u68c4\u7269/\u63a9\u57cb/\u6c61\u6c34\u8655\u7406" : feature_group_f4c758f0803f6ff5484948e3f99b473a,
+                    "\u7802\u77f3/\u63a1\u7926/\u6df7\u51dd\u571f" : feature_group_ca5dd60e685a5b7dcb97c2dba3df57d5,
+                    "\ud83d\udd25 FIRMS \u706b\u9ede/\u71b1\u7570\u5e38" : feature_group_c91284aa61861ff65add80296059915c,
+                },
+            };
+            let layer_control_b0c988a9cfade75f5759660a05941372 = L.control.layers(
+                layer_control_b0c988a9cfade75f5759660a05941372_layers.base_layers,
+                layer_control_b0c988a9cfade75f5759660a05941372_layers.overlays,
+                {
+  "position": "topright",
+  "collapsed": true,
+  "autoZIndex": true,
+}
+            ).addTo(map_60937e17c1bd3c6b8bb239dfbd010711);
+
+        
+</script>
+</html>
