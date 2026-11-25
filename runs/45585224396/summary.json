@@ -1,0 +1,42 @@
+{
+  "lat": 24.9906796,
+  "lon": 121.5307497,
+  "time": "2026-11-22T14:00:00+08:00",
+  "radius_km": 10.0,
+  "wind": {
+    "dir": 104.7223599998735,
+    "speed": 5.8774999999999995,
+    "precip": 0.0,
+    "hours": 4,
+    "source": "Open-Meteo 模式網格值"
+  },
+  "places": [
+    "中和區",
+    "文山區",
+    "深坑區",
+    "新店區",
+    "大安區",
+    "中山區",
+    "南港區",
+    "土城區",
+    "新北市",
+    "臺北市"
+  ],
+  "n_sources": 2855,
+  "n_upwind": 299,
+  "n_fires": 0,
+  "n_fires_industrial": 0,
+  "n_news": 28,
+  "n_news_relevant": 13,
+  "failed": [
+    "環境部測站風向：查無事件時段資料（詳見 Actions log 的 [moenv]）"
+  ],
+  "model_wind": {
+    "dir": 104.7223599998735,
+    "speed": 5.8774999999999995,
+    "precip": 0.0,
+    "hours": 4,
+    "source": "Open-Meteo 模式網格值"
+  },
+  "stations": []
+}
