@@ -45,6 +45,26 @@ def classify(tags, kind):
     return None
 
 
+CONSTRUCTION_ZH = {"residential": "住宅", "apartments": "集合住宅", "house": "住宅", "commercial": "商業",
+                   "retail": "商場", "office": "辦公", "industrial": "工業/廠房", "school": "學校",
+                   "hospital": "醫院", "public": "公共建築", "road": "道路", "motorway": "高速公路",
+                   "primary": "主要道路", "secondary": "次要道路", "tertiary": "道路", "railway": "鐵路",
+                   "subway": "捷運", "bridge": "橋梁", "station": "車站", "parking": "停車場", "park": "公園"}
+
+
+def detail(tags):
+    """附註：營建類型（OSM construction=*）、業主/營造商等，有標才顯示。"""
+    parts = []
+    c = tags.get("construction")
+    if c:
+        parts.append(f"類型:{CONSTRUCTION_ZH.get(c, c)}")
+    for k, lab in (("operator", "業主"), ("contractor", "營造"), ("start_date", "開工"),
+                   ("opening_date", "預計完工")):
+        if tags.get(k):
+            parts.append(f"{lab}:{tags[k]}")
+    return ("；" + "；".join(parts)) if parts else ""
+
+
 def name_of(tags):
     return tags.get("name:zh") or tags.get("name") or tags.get("operator") or "(未命名)"
 
@@ -59,7 +79,7 @@ def main(src, dst):
         if o.is_node():
             cat = classify(tags, "node")
             if cat and o.location.valid():
-                rows.append((name_of(tags), cat, o.location.lat, o.location.lon, f"osm:node/{o.id}"))
+                rows.append((name_of(tags), cat, o.location.lat, o.location.lon, f"osm:node/{o.id}{detail(tags)}"))
         elif o.is_way():
             # 封閉的面狀 way 會再以 area 出現；這裡只處理線（如道路施工）與非封閉 way
             if o.is_closed() and tags.get("highway") != "construction":
@@ -68,7 +88,7 @@ def main(src, dst):
             pts = [(n.lat, n.lon) for n in o.nodes if n.location.valid()]
             if cat and pts:
                 rows.append((name_of(tags), cat, sum(p[0] for p in pts) / len(pts),
-                             sum(p[1] for p in pts) / len(pts), f"osm:way/{o.id}"))
+                             sum(p[1] for p in pts) / len(pts), f"osm:way/{o.id}{detail(tags)}"))
         elif o.is_area():
             cat = classify(tags, "area")
             if not cat or cat == "道路施工":
@@ -81,7 +101,7 @@ def main(src, dst):
                 continue
             seen.add(oid)
             rows.append((name_of(tags), cat, sum(p[0] for p in pts) / len(pts),
-                         sum(p[1] for p in pts) / len(pts), oid))
+                         sum(p[1] for p in pts) / len(pts), oid + detail(tags)))
 
     dst = Path(dst)
     dst.parent.mkdir(parents=True, exist_ok=True)
