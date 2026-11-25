@@ -57,7 +57,9 @@ OSM_CATEGORIES = {
     "加油站(VOC)": (['nwr["amenity"="fuel"]'], "#17becf"),
     "殯葬/火化": (['nwr["amenity"="crematorium"]'], "#e377c2"),
     "廟宇(香燭/金爐/鞭炮/繞境)": (['nwr["amenity"="place_of_worship"]["religion"~"taoist|buddhist|folk"]'], "#ff7f0e"),
-    "道路/工地施工": (['way["highway"="construction"]', 'nwr["landuse"="construction"]'], "#2ca02c"),
+    # 拆成兩類分開查：道路施工線段資料量大、最常逾時，失敗時不會連帶工地一起沒資料
+    "工地(建案/營建)": (['nwr["landuse"="construction"]'], "#2ca02c"),
+    "道路施工": (['way["highway"="construction"]'], "#98df8a"),
 }
 CLUSTER_CATS = {"加油站(VOC)", "廟宇(香燭/金爐/鞭炮/繞境)"}
 FIRMS_SATS = ["VIIRS_SNPP", "VIIRS_NOAA20", "VIIRS_NOAA21"]
@@ -68,7 +70,16 @@ TAIWAN_BOXES = [(21.8, 25.4, 120.0, 122.1), (23.1, 23.85, 119.3, 119.75),
 NEWS_KEYWORDS = ["火災", "繞境", "廟會", "煙火", "焚燒", "道路施工", "空污", "工廠 異味"]
 # 標題含這些字 → 多半是廣告/宣導/評論，列為「疑似無關」（不刪除，只降級顯示）
 NEWS_NOISE = ["飯店", "酒店", "優惠", "懶人包", "開箱", "房", "派對", "門票", "行動電源", "鋰電池",
-              "宣導", "呼籲", "示警", "須知", "防範", "身障", "當年", "回顧"]
+              "宣導", "呼籲", "示警", "須知", "防範", "身障", "當年", "回顧",
+              "車掃", "造勢", "政見", "選戰", "參選", "市長", "議員", "虐童", "AI"]
+# 標題關鍵字（Google News 會比對內文，標題沒提到就多半無關）
+NEWS_TITLE_HINTS = {"火災": ["火", "燒", "濃煙", "黑煙"], "繞境": ["繞境", "遶境", "進香"],
+                    "廟會": ["廟", "宮", "王船", "醮"], "煙火": ["煙火", "鞭炮", "炮"],
+                    "焚燒": ["焚", "燒", "王船"], "道路施工": ["施工", "挖掘", "封路", "管制"],
+                    "空污": ["空污", "空品", "PM2.5", "異味", "臭", "煙霧", "霾"],
+                    "工廠 異味": ["異味", "臭", "工廠"]}
+TW_CITIES = ["臺北", "台北", "新北", "基隆", "桃園", "新竹", "苗栗", "臺中", "台中", "彰化", "南投", "雲林",
+             "嘉義", "臺南", "台南", "高雄", "屏東", "宜蘭", "花蓮", "臺東", "台東", "澎湖", "金門", "連江", "馬祖"]
 FAILED = []  # 各蒐集步驟失敗紀錄，寫入地圖與 summary，避免「0 筆」與「查詢失敗」混淆
 
 
@@ -333,6 +344,8 @@ def reverse_geocode(lat, lon, radius_km=0, wind=None):
 
 
 def collect_news(places, t0, t1):
+    local = {c for c in TW_CITIES for p in places if c[:2] in p.replace("台", "臺") or c in p}
+    local |= {c.replace("臺", "台") for c in local} | {c.replace("台", "臺") for c in local}
     items = {}
     for name in places:
         for kw in NEWS_KEYWORDS:
@@ -351,7 +364,13 @@ def collect_news(places, t0, t1):
                     continue
                 if t0 - timedelta(days=1) <= dt <= t1 + timedelta(days=1):
                     link, title = it.findtext("link"), it.findtext("title") or ""
-                    noise = [w for w in NEWS_NOISE if w in title]
+                    head = title.rsplit(" - ", 1)[0]  # 去掉「- 媒體名」
+                    noise = [w for w in NEWS_NOISE if w in head]
+                    if not any(h in head for h in NEWS_TITLE_HINTS.get(kw, [kw])):
+                        noise.append(f"標題無「{kw}」相關字")
+                    far = [c for c in TW_CITIES if c in head and c not in local]
+                    if far:
+                        noise.append(f"外縣市:{far[0]}")
                     if dt > t1:
                         timing = "事件時間後發布"
                     elif dt < t0:
