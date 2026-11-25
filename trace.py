@@ -25,7 +25,7 @@ from urllib.parse import quote
 
 import folium
 import requests
-from folium.plugins import MarkerCluster
+from folium.plugins import GroupedLayerControl, MarkerCluster
 
 TZ = timezone(timedelta(hours=8))  # Asia/Taipei
 UA = {"User-Agent": "pollution-source-tracer/1.0 (environmental research)"}
@@ -608,30 +608,32 @@ def sat_links(lat, lon, t):
 # ---------------------------------------------------------------- 地圖
 def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, stations=(), model_wind=None):
     m = folium.Map(location=[lat, lon], zoom_start=12, tiles=None)
+    base = []
     for i, (name, url, attr) in enumerate(BASEMAPS):
-        folium.TileLayer(url, name=name, attr=attr, max_zoom=19, show=(i == 0), overlay=False,
-                         control=True).add_to(m)
-    # 事件當天與前一天的衛星每日影像（疊加圖層，預設關閉；VIIRS 約臺灣時間 13:30 過境）
-    for d in [(t - timedelta(days=1)).date().isoformat(), t.date().isoformat()]:
-        for label, layer in GIBS_LAYERS[:2]:
-            folium.TileLayer(GIBS_URL.format(layer=layer, date=d), name=f"🛰️ {d[5:]} {label} 衛星影像",
-                             attr="NASA GIBS", max_native_zoom=9, max_zoom=19, overlay=True, show=False,
-                             opacity=0.85).add_to(m)
+        base.append(folium.TileLayer(url, name=name, attr=attr, max_zoom=19, show=(i == 0),
+                                     overlay=False).add_to(m))
+    # 圖層分組：{群組名: [圖層...]}，由 GroupedLayerControl 統一控制顯示/隱藏
+    ctl = {"範圍與氣象": [], "固定源/設施": [], "事件": [], "衛星影像（當天/前一天）": []}
+
+    rg = folium.FeatureGroup(name=f"監測點與 {radius:g} km 範圍").add_to(m)
     folium.Circle([lat, lon], radius=radius * 1000, color="#1f77b4", fill=False, weight=2,
-                  tooltip=f"{radius:g} km").add_to(m)
+                  tooltip=f"{radius:g} km").add_to(rg)
     folium.Circle([lat, lon], radius=radius * 500, color="#1f77b4", fill=False, weight=1,
-                  dash_array="6").add_to(m)
+                  dash_array="6").add_to(rg)
     folium.Marker([lat, lon], tooltip="監測點", popup=f"{lat:.5f}, {lon:.5f}<br>{t:%Y-%m-%d %H:%M}",
-                  icon=folium.Icon(color="blue", icon="crosshairs", prefix="fa")).add_to(m)
+                  icon=folium.Icon(color="blue", icon="crosshairs", prefix="fa")).add_to(rg)
+    ctl["範圍與氣象"].append(rg)
 
     if wind:
+        wg = folium.FeatureGroup(name="上風處扇區（±45°）").add_to(m)
         pts = [[lat, lon]] + [list(destination(lat, lon, b, radius)) for b in range(int(wind["dir"]) - 45,
                                                                                     int(wind["dir"]) + 46, 5)]
         folium.Polygon(pts, color="#ff7f0e", weight=1, fill=True, fill_opacity=0.12,
-                       tooltip=f"上風處扇區（風自{compass(wind['dir'])}方 {wind['dir']:.0f}° 吹來）").add_to(m)
+                       tooltip=f"上風處扇區（風自{compass(wind['dir'])}方 {wind['dir']:.0f}° 吹來）").add_to(wg)
+        ctl["範圍與氣象"].append(wg)
 
     if stations:
-        sg = folium.FeatureGroup(name="🧭 測站風向（線指向風吹去的方向）").add_to(m)
+        sg = folium.FeatureGroup(name=f"測站風向（{len(stations)} 站，線指向下風）").add_to(m)
         for st in stations:
             tip = destination(st["lat"], st["lon"], (st["dir"] + 180) % 360, 0.4 + 0.25 * min(st["speed"], 8))
             col = "#1f77b4" if st["source"] == "環境部" else "#2ca02c"
@@ -646,26 +648,47 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
                                     f"穩定度 {st['steady']:.2f}<table border=1 style=border-collapse:collapse>"
                                     f"<tr><th>時</th><th>風向</th><th>m/s</th></tr>{rows}</table>",
                                     max_width=260)).add_to(sg)
+        ctl["範圍與氣象"].append(sg)
 
-    groups = {}
     colors = {c: v[1] for c, v in OSM_CATEGORIES.items()} | EXTRA_COLORS
-    for s in sorted(sources, key=lambda x: x["dist_km"]):
-        cat = s["category"]
-        if cat not in groups:
-            fg = folium.FeatureGroup(name=f"{cat}")
-            fg.add_to(m)
-            groups[cat] = (MarkerCluster().add_to(fg) if cat in CLUSTER_CATS else fg)
-        up = s.get("upwind")
+    cnt = {}
+    for s in sources:
+        cnt[s["category"]] = cnt.get(s["category"], 0) + 1
+
+    def marker(s, target):
+        cat, up = s["category"], s.get("upwind")
         popup = (f"<b>{html.escape(s['name'])}</b><br>{html.escape(cat)}<br>"
                  f"距離 {s['dist_km']:.2f} km，位於監測點 {compass(s['bearing'])}方 ({s['bearing']:.0f}°)<br>"
                  f"{'<b style=color:#d62728>⚠ 位於上風處</b><br>' if up else ''}"
                  f"來源：{s['source']} {html.escape(s.get('note', ''))}")
-        folium.CircleMarker([s["lat"], s["lon"]], radius=7 if up else 4, color="#d62728" if up else colors.get(cat, "#555"),
+        folium.CircleMarker([s["lat"], s["lon"]], radius=7 if up else 4,
+                            color="#d62728" if up else colors.get(cat, "#555"),
                             fill=True, fill_color=colors.get(cat, "#555"), fill_opacity=0.8,
                             weight=3 if up else 1, popup=folium.Popup(popup, max_width=300),
-                            tooltip=f"{s['name']} ({s['dist_km']:.1f} km)").add_to(groups[cat])
+                            tooltip=f"{s['name']} ({s['dist_km']:.1f} km)").add_to(target)
 
-    fg = folium.FeatureGroup(name="🔥 FIRMS 火點/熱異常").add_to(m)
+    # 依類別分圖層；名稱帶顏色圓點與筆數
+    groups = {}
+    order = list(EXTRA_COLORS) + list(OSM_CATEGORIES)
+    for s in sorted(sources, key=lambda x: (order.index(x["category"]) if x["category"] in order else 99,
+                                            x["dist_km"])):
+        cat = s["category"]
+        if cat not in groups:
+            dot = f"<span style='color:{colors.get(cat, '#555')}'>●</span>"
+            fg = folium.FeatureGroup(name=f"{dot} {cat}（{cnt[cat]}）").add_to(m)
+            ctl["固定源/設施"].append(fg)
+            groups[cat] = MarkerCluster().add_to(fg) if cat in CLUSTER_CATS else fg
+        marker(s, groups[cat])
+
+    # 「只看上風處」：預設關閉；搭配取消勾選「固定源/設施」群組使用
+    ups = [s for s in sources if s.get("upwind")]
+    if ups:
+        ug = folium.FeatureGroup(name=f"⚠ 只看上風處（全類別 {len(ups)}）", show=False).add_to(m)
+        for s in ups:
+            marker(s, ug)
+        ctl["範圍與氣象"].append(ug)
+
+    fg = folium.FeatureGroup(name=f"🔥 FIRMS 火點/熱異常（{len(fires)}）").add_to(m)
     for f in fires:
         ind = f.get("industrial")
         note = (f"<b style=color:#7f7f7f>疑似工業熱源</b>：距 {html.escape(f['near_source'])} {f['near_km']} km<br>"
@@ -675,7 +698,39 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
                       popup=folium.Popup(f"火點 {f['time']}<br>{note}信心 {f['confidence']}，FRP {f['frp']} MW<br>"
                                          f"{f['product']}<br>{sat_links(f['lat'], f['lon'], datetime.fromisoformat(f['time']))}",
                                          max_width=320)).add_to(fg)
-    folium.LayerControl(collapsed=True).add_to(m)
+    ctl["事件"].append(fg)
+
+    # 事件當天與前一天的衛星每日影像（預設關閉；VIIRS 約臺灣時間 13:30 過境）
+    for d in [(t - timedelta(days=1)).date().isoformat(), t.date().isoformat()]:
+        for label, layer in GIBS_LAYERS[:2]:
+            ctl["衛星影像（當天/前一天）"].append(folium.TileLayer(
+                GIBS_URL.format(layer=layer, date=d), name=f"{d[5:]} {label}", attr="NASA GIBS",
+                max_native_zoom=9, max_zoom=19, overlay=True, show=False, opacity=0.85).add_to(m))
+
+    GroupedLayerControl({k: v for k, v in ctl.items() if v}, exclusive_groups=False, base_layers=base,
+                        collapsed=True, groupCheckboxes=True).add_to(m)
+    # 桌機預設展開圖層選單，手機維持收合（點右上圖示展開）
+    # 群組勾選框與子圖層同步（全勾＝勾、否則不勾）；桌機預設展開圖層選單
+    m.get_root().html.add_child(folium.Element("""
+<style>.leaflet-control-layers-expanded{max-height:65vh;overflow-y:auto;font-size:12px}
+.leaflet-control-layers-group-label{margin-top:6px;border-top:1px solid #ddd;padding-top:4px}
+.leaflet-control-layers-group-name{font-weight:bold}</style>
+<script>
+window.addEventListener('load', function () {
+  function sync() {
+    document.querySelectorAll('.leaflet-control-layers-group').forEach(function (g) {
+      var sel = g.querySelector('.leaflet-control-layers-group-selector');
+      var kids = g.querySelectorAll('.leaflet-control-layers-selector');
+      if (sel && kids.length) sel.checked = Array.prototype.every.call(kids, function (k) { return k.checked; });
+    });
+  }
+  var c = document.querySelector('.leaflet-control-layers');
+  if (!c) return;
+  sync();
+  c.addEventListener('change', function () { setTimeout(sync, 0); });
+  if (window.innerWidth > 800) c.classList.add('leaflet-control-layers-expanded');
+});
+</script>"""))
 
     # 側欄摘要
     up_top = [s for s in sources if s.get("upwind") and s["category"] not in CLUSTER_CATS][:12]
