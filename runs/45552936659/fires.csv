@@ -1,0 +1,3 @@
+﻿lat,lon,time,confidence,frp,product,industrial,near_source,near_km
+24.97589,121.03909,2026-11-22T01:00+08:00,n,0.41,VIIRS_NOAA20_NRT,True,永豐餘工業用紙公司新屋廠,0.637
+24.97361,121.04336,2026-11-22T01:43+08:00,n,0.58,VIIRS_NOAA21_NRT,True,(未命名),0.76
