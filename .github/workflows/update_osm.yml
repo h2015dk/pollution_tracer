@@ -22,8 +22,21 @@ jobs:
       - run: |
           sudo apt-get update -q && sudo apt-get install -y -q osmium-tool
           pip install osmium
-      - name: Download Taiwan extract (Geofabrik)
-        run: curl -fSL -o taiwan.osm.pbf https://download.geofabrik.de/asia/taiwan-latest.osm.pbf
+      - name: Download Taiwan extract
+        run: |
+          # Geofabrik 為主，openstreetmap.fr 為備援；每個來源重試 4 次
+          for url in \
+            https://download.geofabrik.de/asia/taiwan-latest.osm.pbf \
+            https://download.openstreetmap.fr/extracts/asia/taiwan-latest.osm.pbf; do
+            echo "下載 $url"
+            if curl -fSL --retry 4 --retry-all-errors --retry-delay 30 --connect-timeout 30 \
+                 -o taiwan.osm.pbf "$url"; then
+              ls -lh taiwan.osm.pbf
+              exit 0
+            fi
+          done
+          echo "::error::所有來源都下載失敗；repo 內既有快照不受影響，可稍後再跑"
+          exit 1
       - name: Filter tags
         run: |
           osmium tags-filter taiwan.osm.pbf \
@@ -41,5 +54,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           git add data/osm_taiwan.csv.gz data/osm_taiwan.meta.json
-          git commit -m "Update OSM Taiwan snapshot" || echo "no changes"
-          git push
+          git commit -m "Update OSM Taiwan snapshot" || { echo "no changes"; exit 0; }
+          # 執行期間若有人改了 main（例如網頁上傳檔案），先合併再推，最多重試 3 次
+          for i in 1 2 3; do
+            git pull --rebase -q origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && exit 0
+            sleep 5
+          done
+          exit 1
