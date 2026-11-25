@@ -728,7 +728,7 @@ def main():
     ap.add_argument("--window-hours", type=float, default=24.0, help="往前回溯小時數")
     ap.add_argument("--extra-sources", default="data/stationary_sources.csv")
     ap.add_argument("--out", default="output")
-    ap.add_argument("--wind-dir", type=float, help="手動風向（度，風吹來的方向；如測站資料），優先於 Open-Meteo")
+    ap.add_argument("--wind-dir", type=float, help="手動風向（度，風吹來的方向），優先於測站與 Open-Meteo")
     ap.add_argument("--wind-speed", type=float, default=0.0, help="手動風速 m/s")
     ap.add_argument("--industrial-buffer", type=float, default=0.8,
                     help="火點距工業熱源多少公里內視為疑似工業熱源")
