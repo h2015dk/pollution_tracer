@@ -25,8 +25,8 @@
   "n_upwind": 536,
   "n_fires": 0,
   "n_fires_industrial": 0,
-  "n_news": 37,
-  "n_news_relevant": 9,
+  "n_news": 0,
+  "n_news_relevant": 0,
   "failed": [],
   "model_wind": {
     "dir": 287.326124326466,
