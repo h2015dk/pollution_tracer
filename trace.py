@@ -63,7 +63,9 @@ OSM_CATEGORIES = {
 }
 CLUSTER_CATS = {"加油站(VOC)", "廟宇(香燭/金爐/鞭炮/繞境)"}
 FIRMS_SATS = ["VIIRS_SNPP", "VIIRS_NOAA20", "VIIRS_NOAA21"]
-HEAT_CATS = {"工業區/工廠", "煙囪/儲槽/燃燒塔", "電廠/發電設施", "自備固定源"}  # 會持續發熱、易被誤判成火點
+HEAT_CATS = {"工業區/工廠", "煙囪/儲槽/燃燒塔", "電廠/發電設施", "自備固定源", "空污列管公私場所"}
+MOENV_SOURCES = Path(os.getenv("MOENV_SOURCES", "data/moenv_sources.csv.gz"))
+EXTRA_COLORS = {"空污列管公私場所": "#67000d", "自備固定源": "#000000"}  # 會持續發熱、易被誤判成火點
 # 台灣範圍（概略框：本島+離島、澎湖、馬祖、金門）(lat_min, lat_max, lon_min, lon_max)
 TAIWAN_BOXES = [(21.8, 25.4, 120.0, 122.1), (23.1, 23.85, 119.3, 119.75),
                 (25.9, 26.4, 119.9, 120.6), (24.3, 24.6, 118.15, 118.6)]
@@ -230,6 +232,25 @@ def collect_osm(lat, lon, radius_km):
             name = tags.get("name:zh") or tags.get("name") or tags.get("operator") or "(未命名)"
             out.append(dict(name=name, category=cat, lat=la, lon=lo, source="OSM",
                             note=f"osm:{el['type']}/{el['id']}"))
+    return out
+
+
+def collect_moenv_sources(lat, lon, radius_km):
+    """環境部空污列管公私場所（由 update_moenv.yml 每週產生，EMS_S_01）。"""
+    if not MOENV_SOURCES.exists():
+        return []
+    import gzip
+    meta = MOENV_SOURCES.with_name("moenv_sources.meta.json")
+    built = json.loads(meta.read_text(encoding="utf-8")).get("built", "")[:10] if meta.exists() else "?"
+    out = []
+    with gzip.open(MOENV_SOURCES, "rt", encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            la, lo = float(r["lat"]), float(r["lon"])
+            if abs(la - lat) > radius_km / 100 or haversine(lat, lon, la, lo) > radius_km:
+                continue
+            out.append(dict(name=r["name"], category=r["category"], lat=la, lon=lo,
+                            source=f"環境部列管({built})", note=r["note"]))
+    print(f"  [moenv] 列管公私場所 {len(out)} 筆（清單 {built}）", file=sys.stderr)
     return out
 
 
@@ -627,7 +648,7 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
                                     max_width=260)).add_to(sg)
 
     groups = {}
-    colors = {c: v[1] for c, v in OSM_CATEGORIES.items()}
+    colors = {c: v[1] for c, v in OSM_CATEGORIES.items()} | EXTRA_COLORS
     for s in sorted(sources, key=lambda x: x["dist_km"]):
         cat = s["category"]
         if cat not in groups:
@@ -768,6 +789,7 @@ def main():
     else:
         wind = st_wind or model_wind  # 優先用測站，沒有才用模式
     sources = safe("OSM 固定源/施工/廟宇", lambda: collect_osm(a.lat, a.lon, a.radius), [])
+    sources += safe("環境部列管公私場所", lambda: collect_moenv_sources(a.lat, a.lon, a.radius), [])
     sources += collect_extra(a.extra_sources)
     for s in sources:
         s["dist_km"] = round(haversine(a.lat, a.lon, s["lat"], s["lon"]), 3)
