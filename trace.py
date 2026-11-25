@@ -413,12 +413,51 @@ def collect_news(places, t0, t1):
     return sorted(news, key=lambda x: not x["relevant"])  # stable：相關者在前，各組內新→舊
 
 
+# ---------------------------------------------------------------- 衛星影像
+# NASA GIBS 每日真實色彩影像（解析度約 250–375 m，看得到大範圍濃煙/煙羽，看不到小火）
+GIBS_LAYERS = [("VIIRS SNPP", "VIIRS_SNPP_CorrectedReflectance_TrueColor"),
+               ("VIIRS NOAA-20", "VIIRS_NOAA20_CorrectedReflectance_TrueColor"),
+               ("MODIS Aqua", "MODIS_Aqua_CorrectedReflectance_TrueColor")]
+GIBS_URL = ("https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{date}/"
+            "GoogleMapsCompatible_Level9/{{z}}/{{y}}/{{x}}.jpg")
+
+
+def worldview_url(lat, lon, day, km=15):
+    """NASA Worldview：指定日期的衛星真實色彩 + VIIRS 火點圖層。"""
+    d = km / 111.0
+    return ("https://worldview.earthdata.nasa.gov/?v="
+            f"{lon - d * 1.5:.3f},{lat - d:.3f},{lon + d * 1.5:.3f},{lat + d:.3f}&t={day}-T05:30:00Z"
+            "&l=Coastlines_15m,VIIRS_NOAA20_Thermal_Anomalies_375m_All,VIIRS_SNPP_Thermal_Anomalies_375m_All,"
+            "VIIRS_SNPP_CorrectedReflectance_TrueColor")
+
+
+def copernicus_url(lat, lon, t, days=7):
+    """Copernicus Browser：Sentinel-2（10 m，約 5 天一次，常被雲遮）事件前 N 天的影像。"""
+    t0 = (t - timedelta(days=days)).astimezone(timezone.utc)
+    t1 = (t + timedelta(days=1)).astimezone(timezone.utc)
+    return (f"https://browser.dataspace.copernicus.eu/?zoom=14&lat={lat:.5f}&lng={lon:.5f}"
+            f"&fromTime={t0:%Y-%m-%dT00:00:00.000Z}&toTime={t1:%Y-%m-%dT23:59:59.999Z}&datasetId=S2_L2A_CDAS")
+
+
+def sat_links(lat, lon, t):
+    days = [(t - timedelta(days=1)).date().isoformat(), t.date().isoformat()]
+    wv = "／".join(f"<a href='{html.escape(worldview_url(lat, lon, d))}' target='_blank'>{d[5:]}</a>" for d in days)
+    return (f"🛰️ NASA Worldview（每日影像＋火點）：{wv}　"
+            f"<a href='{html.escape(copernicus_url(lat, lon, t))}' target='_blank'>Sentinel-2 高解析</a>")
+
+
 # ---------------------------------------------------------------- 地圖
 def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir):
     m = folium.Map(location=[lat, lon], zoom_start=12, tiles=None)
     for i, (name, url, attr) in enumerate(BASEMAPS):
         folium.TileLayer(url, name=name, attr=attr, max_zoom=19, show=(i == 0), overlay=False,
                          control=True).add_to(m)
+    # 事件當天與前一天的衛星每日影像（疊加圖層，預設關閉；VIIRS 約臺灣時間 13:30 過境）
+    for d in [(t - timedelta(days=1)).date().isoformat(), t.date().isoformat()]:
+        for label, layer in GIBS_LAYERS[:2]:
+            folium.TileLayer(GIBS_URL.format(layer=layer, date=d), name=f"🛰️ {d[5:]} {label} 衛星影像",
+                             attr="NASA GIBS", max_native_zoom=9, max_zoom=19, overlay=True, show=False,
+                             opacity=0.85).add_to(m)
     folium.Circle([lat, lon], radius=radius * 1000, color="#1f77b4", fill=False, weight=2,
                   tooltip=f"{radius:g} km").add_to(m)
     folium.Circle([lat, lon], radius=radius * 500, color="#1f77b4", fill=False, weight=1,
@@ -458,7 +497,8 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir):
         folium.Marker([f["lat"], f["lon"]],
                       icon=folium.Icon(color="gray" if ind else "red", icon="fire", prefix="fa"),
                       popup=folium.Popup(f"火點 {f['time']}<br>{note}信心 {f['confidence']}，FRP {f['frp']} MW<br>"
-                                         f"{f['product']}", max_width=300)).add_to(fg)
+                                         f"{f['product']}<br>{sat_links(f['lat'], f['lon'], datetime.fromisoformat(f['time']))}",
+                                         max_width=320)).add_to(fg)
     folium.LayerControl(collapsed=True).add_to(m)
 
     # 側欄摘要
@@ -485,6 +525,8 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir):
                  + "<br>".join(html.escape(x) for x in FAILED))
     h.append("<hr><b>固定源統計</b><br>" + "<br>".join(f"{html.escape(k)}：{v}" for k, v in cnt.items()))
     h.append(f"<br>🔥 火點：{len(fires)}（疑似工業熱源 {sum(1 for f in fires if f.get('industrial'))}，灰色）")
+    h.append(f"<br>{sat_links(lat, lon, t)}<br><span style=color:#888>右上圖層可疊加當天/前一天衛星影像"
+             "（解析度約 300 m，看煙羽用）</span>")
     if up_top:
         h.append("<hr><b>上風處最近的工業/能源類污染源</b><br>" + "<br>".join(
             f"{s['dist_km']:.1f} km {compass(s['bearing'])}｜{html.escape(s['name'])}" for s in up_top))
