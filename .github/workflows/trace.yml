@@ -20,6 +20,12 @@ on:
       window_hours:
         description: "往前回溯小時數"
         default: "24"
+      wind_dir:
+        description: "（選填）手動風向°，風吹來方向，如測站值；空白則抓 Open-Meteo"
+        default: ""
+      wind_speed:
+        description: "（選填）手動風速 m/s"
+        default: ""
 
 jobs:
   trace:
@@ -40,8 +46,12 @@ jobs:
           T: ${{ inputs.time }}
           R: ${{ inputs.radius_km }}
           W: ${{ inputs.window_hours }}
+          WD: ${{ inputs.wind_dir }}
+          WS: ${{ inputs.wind_speed }}
         run: |
-          python trace.py --lat "$LAT" --lon "$LON" --time "$T" --radius "$R" --window-hours "$W" --out output
+          EXTRA=()
+          if [ -n "$WD" ]; then EXTRA+=(--wind-dir "$WD" --wind-speed "${WS:-0}"); fi
+          python trace.py --lat "$LAT" --lon "$LON" --time "$T" --radius "$R" --window-hours "$W" --out output "${EXTRA[@]}"
           cat output/summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
