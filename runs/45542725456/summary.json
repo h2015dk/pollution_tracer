@@ -20,18 +20,15 @@
     "塔腳里",
     "桃園市"
   ],
-  "n_sources": 30,
-  "n_upwind": 6,
+  "n_sources": 113,
+  "n_upwind": 29,
   "n_fires": 2,
   "n_fires_industrial": 0,
-  "n_news": 6,
-  "n_news_relevant": 2,
+  "n_news": 13,
+  "n_news_relevant": 3,
   "failed": [
     "OSM 工業區/工廠：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）",
-    "OSM 電廠/發電設施：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）",
-    "OSM 加油站(VOC)：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）",
     "OSM 殯葬/火化：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）",
-    "OSM 廟宇(香燭/金爐/鞭炮/繞境)：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）",
     "OSM 工地(建案/營建)：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）",
     "OSM 道路施工：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）"
   ]
