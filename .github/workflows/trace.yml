@@ -57,6 +57,8 @@ jobs:
       - name: Run trace
         env:
           FIRMS_MAP_KEY: ${{ secrets.FIRMS_MAP_KEY }}
+          MOENV_API_KEY: ${{ secrets.MOENV_API_KEY }}
+          CWA_API_KEY: ${{ secrets.CWA_API_KEY }}
           LAT: ${{ inputs.lat }}
           LON: ${{ inputs.lon }}
           T: ${{ inputs.time }}
@@ -90,6 +92,8 @@ jobs:
         run: |
           mkdir -p site/runs/${{ github.run_id }}
           cp -r output/. site/runs/${{ github.run_id }}/
+          # 固定網址：latest/ 永遠是最新一次結果（README 連這裡）
+          rm -rf site/latest && mkdir -p site/latest && cp -r output/. site/latest/
           python scripts/build_index.py site
           touch site/.nojekyll
           cd site
@@ -105,6 +109,7 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "🗺️ 互動地圖（Pages 部署約需 1–2 分鐘）：$PAGES_BASE/runs/${{ github.run_id }}/map.html" >> "$GITHUB_STEP_SUMMARY"
           echo "📋 歷次紀錄：$PAGES_BASE/" >> "$GITHUB_STEP_SUMMARY"
+          echo "🆕 最新結果（固定網址）：$PAGES_BASE/latest/map.html" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4   # 備份；公司擋下載時改用上面的 Pages 網址
         with:
