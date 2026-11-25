@@ -217,6 +217,7 @@ def collect_fires(lat, lon, radius_km, t0, t1, key):
     """同時查 SNPP / NOAA-20 / NOAA-21 三顆 VIIRS，增加過境次數。"""
     if not key:
         print("  [firms] 未設定 FIRMS_MAP_KEY，略過火點", file=sys.stderr)
+        FAILED.append("FIRMS 火點：未設定 FIRMS_MAP_KEY，未查詢（不是 0 筆）")
         return []
     dlat = radius_km / 111.0
     dlon = radius_km / (111.0 * math.cos(math.radians(lat)))
@@ -236,6 +237,7 @@ def collect_fires(lat, lon, radius_km, t0, t1, key):
                 raise RuntimeError(r.text[:120])
         except Exception as e:  # 某顆衛星無資料不影響其他
             print(f"  [firms] {src}: {e}", file=sys.stderr)
+            FAILED.append(f"FIRMS {src}：{str(e)[:100]}")
             continue
         for row in csv.DictReader(r.text.splitlines()):
             la, lo = float(row["latitude"]), float(row["longitude"])
@@ -244,6 +246,7 @@ def collect_fires(lat, lon, radius_km, t0, t1, key):
             if u0 <= acq <= u1 and haversine(lat, lon, la, lo) <= radius_km:
                 out.append(dict(lat=la, lon=lo, time=acq.astimezone(TZ).isoformat(timespec="minutes"),
                                 confidence=row.get("confidence", ""), frp=row.get("frp", ""), product=src))
+    print(f"  [firms] 查詢成功，窗內火點 {len(out)} 筆", file=sys.stderr)
     return sorted(out, key=lambda f: f["time"])
 
 
@@ -471,7 +474,7 @@ def main():
         s["bearing"] = round(bearing(a.lat, a.lon, s["lat"], s["lon"]), 1)
         s["upwind"] = bool(wind) and angdiff(s["bearing"], wind["dir"]) <= 45
     sources = sorted([s for s in sources if s["dist_km"] <= a.radius], key=lambda s: s["dist_km"])
-    fires = safe("FIRMS 火點", lambda: collect_fires(a.lat, a.lon, a.radius, t0, t, os.getenv("FIRMS_MAP_KEY")), [])
+    fires = safe("FIRMS 火點", lambda: collect_fires(a.lat, a.lon, a.radius, t0, t, (os.getenv("FIRMS_MAP_KEY") or "").strip()), [])
     flag_industrial_fires(fires, sources, a.industrial_buffer)
     places = safe("反向地理編碼", lambda: reverse_geocode(a.lat, a.lon, a.radius, wind), [])
     news = safe("新聞事件線索", lambda: collect_news(places, t0, t), []) if places else []
@@ -491,7 +494,8 @@ def main():
                 f"- 固定源/設施：{len(sources)}（上風處 {summary['n_upwind']}）\n- FIRMS 火點：{len(fires)}（疑似工業熱源 {summary['n_fires_industrial']}）\n"
                 f"- 新聞線索：{len(news)}（疑似相關 {summary['n_news_relevant']}）\n- 風：{'自%s方 %.0f°，%.1f m/s' % (compass(wind['dir']), wind['dir'], wind['speed']) if wind else '無資料'}\n"
                 + ("".join(f"- ⚠ {x}\n" for x in FAILED) if FAILED else "")
-                + "\n下載 Artifact 內的 `map.html` 以瀏覽互動地圖。\n")
+                + (f"\n🗺️ 互動地圖：{os.getenv('MAP_URL')}\n" if os.getenv("MAP_URL")
+                   else "\n下載 Artifact 內的 `map.html` 以瀏覽互動地圖。\n"))
     print(json.dumps(summary, ensure_ascii=False))
 
 
