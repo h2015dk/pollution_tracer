@@ -608,7 +608,20 @@ def sat_links(lat, lon, t):
 # ---------------------------------------------------------------- 地圖
 SEARCH_JS = r"""
 window.addEventListener('load', function () {
-  var map = %(map)s, SRC = %(data)s, hl = null;
+  var map = %(map)s, SRC = %(data)s, IDX_URL = %(idx)s, C = %(center)s, R = %(radius)s, hl = null;
+  var IDX = null, idxState = 0;  // 全臺索引：0 未載入、1 載入中、2 完成、-1 失敗
+  function loadIdx(cb) {
+    if (idxState === 2 || idxState === -1) { cb && cb(); return; }
+    if (idxState === 1) return;
+    idxState = 1;
+    fetch(IDX_URL).then(function (r) { if (!r.ok) throw 0; return r.json(); })
+      .then(function (js) { IDX = js; idxState = 2; cb && cb(); })
+      .catch(function () { idxState = -1; cb && cb(); });
+  }
+  function km(a, b, c, d) {
+    var r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r;
+    return 6371 * Math.sqrt(x * x + y * y);
+  }
   var box = L.control({position: 'topleft'});
   box.onAdd = function () {
     var d = L.DomUtil.create('div', 'pt-search');
@@ -635,20 +648,39 @@ window.addEventListener('load', function () {
       el.onclick = function () { var it = items[+el.dataset.i]; go(it.lat, it.lon, it.t, it.s); };
     });
   }
-  // 地圖內資料：輸入即篩選（名稱、類別、管編、地址）
+  // 先找本次範圍內資料，不足再找全臺索引（環境部列管＋OSM），範圍外標示距離
+  function key(r) { return r[0] + '|' + (+r[2]).toFixed(3) + '|' + (+r[3]).toFixed(3); }
+  function note(n) { n = n || ''; if (n.indexOf('osm:') === 0) n = n.indexOf('；') > 0 ? n.slice(n.indexOf('；') + 1) : ''; return n; }
+  function find(list, v, out, max, seen, outside) {
+    var hits = [];
+    for (var i = 0; i < list.length && hits.length < 300; i++) {
+      var r = list[i], k = key(r);
+      if (seen[k] || (r[0] + ' ' + r[1] + ' ' + r[4]).toLowerCase().indexOf(v) < 0) continue;
+      seen[k] = 1; hits.push([km(C[0], C[1], r[2], r[3]), r]);
+    }
+    hits.sort(function (a, b) { return a[0] - b[0]; });  // 近的優先
+    hits.slice(0, max).forEach(function (h) {
+      var r = h[1], n = note(r[4]);
+      out.push({t: r[0], s: r[1] + (n ? '｜' + n : '') + (outside && h[0] > R ? '｜範圍外 ' + h[0].toFixed(1) + ' km' : ''),
+                lat: r[2], lon: r[3]});
+    });
+  }
   function local(v) {
     v = v.trim().toLowerCase(); if (!v) { res.innerHTML = ''; return []; }
-    var out = [];
-    for (var i = 0; i < SRC.length && out.length < 8; i++) {
-      var r = SRC[i]; if ((r[0] + ' ' + r[1] + ' ' + r[4]).toLowerCase().indexOf(v) >= 0)
-        out.push({t: r[0], s: r[1] + '｜' + r[4], lat: r[2], lon: r[3]});
-    }
+    var out = [], seen = {};
+    find(SRC, v, out, 8, seen, false);
+    if (IDX) find(IDX, v, out, 12, seen, true);
     return out;
   }
-  q.addEventListener('input', function () {
+  function refresh() {
     var it = local(q.value);
-    if (it.length) show(it, '地圖內資料（按 Enter 改搜尋地址/地標）'); else res.innerHTML = '';
-  });
+    var tail = idxState === 1 ? '（全臺清單載入中…）' : idxState === -1 ? '（全臺清單無法載入，只搜尋本次範圍）' : '';
+    if (it.length) show(it, '固定源/設施' + tail + '（按 Enter 改搜尋地址/地標）');
+    else if (q.value.trim()) res.innerHTML = '<div class="pt-h">無符合的固定源' + tail + '，按 Enter 搜尋地址/地標</div>';
+    else res.innerHTML = '';
+  }
+  q.addEventListener('focus', function () { loadIdx(refresh); });
+  q.addEventListener('input', function () { if (q.value.trim().length >= 1) loadIdx(refresh); refresh(); });
   // 座標或地址/地標：按 Enter 或 🔍 才查 Nominatim（遵守其 1 次/秒 限制，不做逐字查詢）
   function search() {
     var v = q.value.trim(); if (!v) return;
@@ -679,7 +711,7 @@ SEARCH_CSS = """<style>
 </style>"""
 
 
-def add_search(m, sources, stations=()):
+def add_search(m, sources, stations=(), center=(0, 0), radius=0):
     """左上角搜尋框：地圖內資料（固定源名稱/管編/地址、測站）即時篩選；
     Enter 後以 Nominatim 查地址/地標；也可直接輸入「緯度,經度」。"""
     data = [[s["name"], s["category"], round(s["lat"], 6), round(s["lon"], 6), s.get("note", "")]
@@ -687,7 +719,10 @@ def add_search(m, sources, stations=()):
     data += [[f"{st['source']}測站 {st['station']}", "測站", st["lat"], st["lon"], ""] for st in stations]
     m.get_root().html.add_child(folium.Element(SEARCH_CSS))
     m.get_root().script.add_child(folium.Element(
-        SEARCH_JS % dict(map=m.get_name(), data=json.dumps(data, ensure_ascii=False))))
+        SEARCH_JS % dict(map=m.get_name(), data=json.dumps(data, ensure_ascii=False),
+                         # 全臺搜尋索引（GitHub Pages 上由 workflow 產生）；本機開檔時載不到就只搜範圍內
+                         idx=json.dumps(os.getenv("SEARCH_INDEX_URL", "../../search/index.json")),
+                         center=json.dumps(list(center)), radius=radius)))
 
 
 def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, stations=(), model_wind=None):
@@ -791,7 +826,7 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
                 GIBS_URL.format(layer=layer, date=d), name=f"{d[5:]} {label}", attr="NASA GIBS",
                 max_native_zoom=9, max_zoom=19, overlay=True, show=False, opacity=0.85).add_to(m))
 
-    add_search(m, sources, stations)
+    add_search(m, sources, stations, (lat, lon), radius)
     GroupedLayerControl({k: v for k, v in ctl.items() if v}, exclusive_groups=False, base_layers=base,
                         collapsed=True, groupCheckboxes=True).add_to(m)
     # 桌機預設展開圖層選單，手機維持收合（點右上圖示展開）
