@@ -126,26 +126,66 @@ def compass(deg):
 
 
 # ---------------------------------------------------------------- 蒐集器
+OSM_CACHE_DIR = Path(os.getenv("OSM_CACHE_DIR", "cache/osm"))
+OSM_CACHE_DAYS = 30  # 固定設施變動慢，30 天內直接用快取，減少 Overpass 負載
+OSM_BUDGET_S = float(os.getenv("OSM_BUDGET_S", 480))  # OSM 查詢總時間上限，超過即跳過，避免整個 job 逾時
+
+
+def _osm_query(cat, filters, bbox, deadline):
+    """以 bbox 查詢（比 around 快很多），距離在 Python 端再篩。回傳 elements 或丟例外。"""
+    parts = "".join(f"{f}({bbox});" for f in filters)
+    query = f"[out:json][timeout:60];({parts});out center tags;"
+    errs = []
+    for url in OVERPASS:
+        left = deadline - time.monotonic()
+        if left < 20:
+            errs.append("超過查詢時間上限")
+            break
+        try:
+            r = http("POST", url, retries=1, data={"data": query}, timeout=min(75, left))
+            data = r.json()
+            if "runtime error" in data.get("remark", ""):  # 逾時但回 200
+                raise RuntimeError(data["remark"][:100])
+            return data.get("elements", [])
+        except Exception as e:  # 換下一個鏡像
+            errs.append(f"{url.split('/')[2]}: {str(e)[:80]}")
+            print(f"  [overpass] {cat} @ {url}: {e}", file=sys.stderr)
+    raise RuntimeError("；".join(errs))
+
+
 def collect_osm(lat, lon, radius_km):
+    # 快取以 0.01° 網格 + 半徑為鍵；同一地點重跑不必再查 Overpass
+    key = f"{lat:.2f}_{lon:.2f}_{radius_km:g}"
+    dlat = radius_km / 111.0
+    dlon = radius_km / (111.0 * math.cos(math.radians(lat)))
+    bbox = f"{lat - dlat:.5f},{lon - dlon:.5f},{lat + dlat:.5f},{lon + dlon:.5f}"
     out = []
+    deadline = time.monotonic() + OSM_BUDGET_S
     for cat, (filters, _) in OSM_CATEGORIES.items():
-        parts = "".join(f"{f}(around:{int(radius_km * 1000)},{lat},{lon});" for f in filters)
-        query = f"[out:json][timeout:90];({parts});out center tags;"
-        data = None
-        for url in OVERPASS:
+        cf = OSM_CACHE_DIR / key / f"{cat.replace('/', '_')}.json"
+        cached, age = None, None
+        if cf.exists():
+            c = json.loads(cf.read_text(encoding="utf-8"))
+            cached = c["elements"]
+            age = (datetime.now(TZ) - datetime.fromisoformat(c["fetched"])).days
+        if cached is not None and age <= OSM_CACHE_DAYS:
+            elements = cached
+            print(f"  [osm] {cat}: 使用快取（{age} 天前）", file=sys.stderr)
+        else:
             try:
-                r = http("POST", url, retries=2, backoff=10, data={"data": query}, timeout=120)
-                data = r.json()
-                if "remark" in data and "runtime error" in data["remark"]:  # 逾時但回 200
-                    raise RuntimeError(data["remark"][:100])
-                break
-            except Exception as e:  # 換下一個鏡像
-                data = None
-                print(f"  [overpass] {cat} @ {url}: {e}", file=sys.stderr)
-        if data is None:
-            FAILED.append(f"OSM {cat}：所有 Overpass 鏡像查詢失敗（非 0 筆）")
-            continue
-        for el in data.get("elements", []):
+                elements = _osm_query(cat, filters, bbox, deadline)
+                cf.parent.mkdir(parents=True, exist_ok=True)
+                cf.write_text(json.dumps(dict(fetched=datetime.now(TZ).isoformat(), elements=elements),
+                                         ensure_ascii=False), encoding="utf-8")
+                time.sleep(3)  # 對 Overpass 客氣一點
+            except Exception as e:
+                if cached is not None:
+                    elements = cached
+                    FAILED.append(f"OSM {cat}：Overpass 查詢失敗，改用 {age} 天前快取")
+                else:
+                    FAILED.append(f"OSM {cat}：所有 Overpass 鏡像查詢失敗（未取得，非 0 筆）")
+                    continue
+        for el in elements:
             tags = el.get("tags", {})
             la = el.get("lat") or el.get("center", {}).get("lat")
             lo = el.get("lon") or el.get("center", {}).get("lon")
@@ -154,7 +194,6 @@ def collect_osm(lat, lon, radius_km):
             name = tags.get("name:zh") or tags.get("name") or tags.get("operator") or "(未命名)"
             out.append(dict(name=name, category=cat, lat=la, lon=lo, source="OSM",
                             note=f"osm:{el['type']}/{el['id']}"))
-        time.sleep(2)  # 對 Overpass 客氣一點
     return out
 
 
