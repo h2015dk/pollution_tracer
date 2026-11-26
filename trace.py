@@ -38,10 +38,18 @@ OVERPASS = [
 BASEMAPS = [
     ("臺灣通用電子地圖(NLSC)", "https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}",
      "&copy; 內政部國土測繪中心"),
+    # 國土測繪中心正射影像（航照，約 0.25–0.5 m，各地拍攝年份不同；判斷工地用）
+    ("正射影像(NLSC 航照)", "https://wmts.nlsc.gov.tw/wmts/PHOTO2/default/GoogleMapsCompatible/{z}/{y}/{x}",
+     "&copy; 內政部國土測繪中心"),
     ("CartoDB 淺色", "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
      "&copy; OpenStreetMap contributors &copy; CARTO"),
     ("Esri 衛星影像", "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
      "Tiles &copy; Esri"),
+    # Sentinel-2 年度無雲鑲嵌（10 m，非單日影像）；EOX 授權為非商業使用，需標示出處
+    ("Sentinel-2 無雲鑲嵌 2024（EOX）",
+     "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2024_3857/default/g/{z}/{y}/{x}.jpg",
+     "<a href='https://s2maps.eu' target='_blank'>Sentinel-2 cloudless - https://s2maps.eu</a> by EOX IT Services GmbH "
+     "(Contains modified Copernicus Sentinel data 2024)"),
 ]
 
 # 類別 -> (Overpass 篩選條件, 地圖顏色)
@@ -388,31 +396,132 @@ def collect_moenv_wind(lat, lon, t, search_km, key):
     return out
 
 
+CWA_API = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/"
+# 16 方位中文 → 度（氣候資料的風向可能只給方位描述）
+DIR16 = {n: i * 22.5 for i, n in enumerate(
+    ["北", "北北東", "東北", "東北東", "東", "東南東", "東南", "南南東",
+     "南", "南南西", "西南", "西南西", "西", "西北西", "西北", "北北西"])}
+DIR16.update({"偏北": 0, "偏東": 90, "偏南": 180, "偏西": 270, "N": 0, "NNE": 22.5, "NE": 45, "ENE": 67.5,
+              "E": 90, "ESE": 112.5, "SE": 135, "SSE": 157.5, "S": 180, "SSW": 202.5, "SW": 225,
+              "WSW": 247.5, "W": 270, "WNW": 292.5, "NW": 315, "NNW": 337.5})
+
+
+def _cwa_stations(key):
+    """氣象署測站清單與座標：O-A0001-001（自動站）＋ O-A0003-001（署屬有人站）。"""
+    st = {}
+    for ds in ("O-A0001-001", "O-A0003-001"):
+        try:
+            js = http("GET", CWA_API + ds, params=dict(Authorization=key, format="JSON"), timeout=60).json()
+        except Exception as e:
+            print(f"  [cwa] {ds} 測站清單失敗：{e}", file=sys.stderr)
+            continue
+        for x in js.get("records", {}).get("Station", []):
+            coords = x.get("GeoInfo", {}).get("Coordinates", [])
+            c = next((c for c in coords if "WGS84" in str(c.get("CoordinateName", ""))), coords[0] if coords else {})
+            la, lo = _num(c.get("StationLatitude")), _num(c.get("StationLongitude"))
+            if la is not None and lo is not None:
+                st[x.get("StationId")] = dict(id=x.get("StationId"), name=x.get("StationName", "?"), lat=la, lon=lo,
+                                              now=x)
+    return st
+
+
+def _walk_obs(node, ctx=None, out=None):
+    """在未知結構的 JSON 中找「時間＋風向＋風速」紀錄，並帶上所在測站代號。"""
+    out = [] if out is None else out
+    ctx = dict(ctx or {})
+    if isinstance(node, dict):
+        low = {k.lower(): v for k, v in node.items()}
+        # 測站代號可能在本層，或在同層的子物件（如 {"station": {"StationID": ...}, "stationObsTimes": ...}）
+        for d in [low] + [{k.lower(): v for k, v in c.items()} for c in node.values() if isinstance(c, dict)]:
+            sid = next((d[k] for k in ("stationid", "station_id") if isinstance(d.get(k), str)), None)
+            if sid:
+                ctx["sid"] = sid
+                break
+        tkey = next((k for k in ("datatime", "datetime", "obstime", "time", "date") if isinstance(low.get(k), str)), None)
+        if tkey:
+            flat = {}
+
+            def leaves(d, depth=0):  # 淺層優先（避免取到陣風等巢狀欄位）
+                if depth > 3 or not isinstance(d, dict):
+                    return
+                for k, v in d.items():
+                    if not isinstance(v, (dict, list)):
+                        flat.setdefault(k.lower(), v)
+                for k, v in d.items():
+                    if isinstance(v, dict) and not any(w in k.lower() for w in ("gust", "max", "peak")):
+                        leaves(v, depth + 1)
+            leaves(node)
+            wd = next((flat[k] for k in flat if "winddirection" in k and "max" not in k and "gust" not in k), None)
+            ws = next((flat[k] for k in flat if "windspeed" in k and "max" not in k and "gust" not in k), None)
+            if wd is not None and ws is not None:
+                out.append(dict(sid=ctx.get("sid"), time=low[tkey], wd=wd, ws=ws))
+        for v in node.values():
+            _walk_obs(v, ctx, out)
+    elif isinstance(node, list):
+        for v in node:
+            _walk_obs(v, ctx, out)
+    return out
+
+
+def _wd_deg(v):
+    x = _num(v)
+    if x is not None:
+        return x % 360
+    return DIR16.get(str(v).strip().replace("風", ""))
+
+
 def collect_cwa_wind(lat, lon, t, search_km, key):
-    """氣象署自動氣象站（O-A0001-001）——API 只提供最新觀測，事件在 90 分鐘內才有用。"""
+    """氣象署測站風向：事件在 90 分鐘內用即時觀測；否則用氣候資料
+    C-B0024-001（近 30 天）/ C-B0024-002（近一年）逐時觀測。超過一年無法以 API 取得。"""
     if not key:
         FAILED.append("氣象署測站風向：未設定 CWA_API_KEY，未查詢")
         return []
-    if abs((datetime.now(TZ) - t).total_seconds()) > 5400:
-        print("  [cwa] 事件時間距今超過 90 分鐘，氣象署 API 僅提供最新觀測，略過", file=sys.stderr)
+    stations = _cwa_stations(key)
+    near = {sid: v for sid, v in stations.items() if haversine(lat, lon, v["lat"], v["lon"]) <= search_km}
+    print(f"  [cwa] 半徑 {search_km:g} km 內測站：" + "、".join(f"{v['name']}({sid})" for sid, v in near.items()),
+          file=sys.stderr)
+    if not near:
         return []
-    js = http("GET", "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001",
-              params=dict(Authorization=key, format="JSON"), timeout=60).json()
+    t0, t1 = t - timedelta(hours=3), t + timedelta(hours=1)
+    age_h = (datetime.now(TZ) - t).total_seconds() / 3600
     out = []
-    for st in js.get("records", {}).get("Station", []):
-        coords = st.get("GeoInfo", {}).get("Coordinates", [])
-        c = next((c for c in coords if "WGS84" in str(c.get("CoordinateName", ""))), coords[0] if coords else {})
-        la, lo = _num(c.get("StationLatitude")), _num(c.get("StationLongitude"))
-        we = st.get("WeatherElement", {})
-        wd, ws = _num(we.get("WindDirection")), _num(we.get("WindSpeed"))
-        if None in (la, lo, wd, ws):
-            continue
-        dist = haversine(lat, lon, la, lo)
-        if dist <= search_km:
-            out.append(dict(source="氣象署", station=st.get("StationName", "?"), lat=la, lon=lo,
-                            time=str(st.get("ObsTime", {}).get("DateTime", ""))[:16],
-                            dir=wd % 360, speed=ws, dist_km=round(dist, 2)))
-    print(f"  [cwa] 範圍內 {len(out)} 站", file=sys.stderr)
+
+    def add(sid, ts, wd, ws):
+        v = near.get(sid)
+        d, sp, tt = _wd_deg(wd), _num(ws), _parse_ts(ts)
+        if v is None or d is None or sp is None or tt is None or not (t0 <= tt <= t1):
+            return
+        out.append(dict(source="氣象署", station=v["name"], lat=v["lat"], lon=v["lon"],
+                        time=tt.isoformat(timespec="minutes"), dir=d, speed=sp,
+                        dist_km=round(haversine(lat, lon, v["lat"], v["lon"]), 2)))
+
+    if abs(age_h) <= 1.5:  # 即時
+        for sid, v in near.items():
+            we = v["now"].get("WeatherElement", {})
+            add(sid, str(v["now"].get("ObsTime", {}).get("DateTime", "")), we.get("WindDirection"), we.get("WindSpeed"))
+    elif age_h <= 365 * 24:
+        ds = "C-B0024-001" if age_h <= 29 * 24 else "C-B0024-002"
+        ids = ",".join(near)
+        tries = [dict(StationId=ids, timeFrom=f"{t0:%Y-%m-%dT%H:%M:%S}", timeTo=f"{t1:%Y-%m-%dT%H:%M:%S}"),
+                 dict(StationId=ids)]
+        for extra in tries:
+            try:
+                js = http("GET", CWA_API + ds, params=dict(Authorization=key, format="JSON", **extra), timeout=180).json()
+            except Exception as e:
+                print(f"  [cwa] {ds} {list(extra)} 失敗：{e}", file=sys.stderr)
+                continue
+            recs = _walk_obs(js)
+            print(f"  [cwa] {ds} 參數 {list(extra)} → 解析到 {len(recs)} 筆風資料；回傳開頭：{json.dumps(js, ensure_ascii=False)[:400]}",
+                  file=sys.stderr)
+            for r in recs:
+                add(r["sid"], r["time"], r["wd"], r["ws"])
+            if out:
+                break
+        if not out:
+            FAILED.append(f"氣象署測站風向：{ds} 查無事件時段資料（詳見 Actions log 的 [cwa]）")
+    else:
+        print("  [cwa] 事件超過一年，氣象署開放 API 無逐時資料（需由 CODiS 下載）", file=sys.stderr)
+    print(f"  [cwa] 事件時段取得 {len(out)} 筆", file=sys.stderr)
     return out
 
 
@@ -739,6 +848,7 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
     base = []
     for i, (name, url, attr) in enumerate(BASEMAPS):
         base.append(folium.TileLayer(url, name=name, attr=attr, max_zoom=19, show=(i == 0),
+                                     max_native_zoom=15 if "eox.at" in url else 19,  # 10 m 影像放大後沿用 z15 圖磚
                                      overlay=False).add_to(m))
     # 圖層分組：{群組名: [圖層...]}，由 GroupedLayerControl 統一控制顯示/隱藏
     ctl = {"範圍與氣象": [], "固定源/設施": [], "事件": [], "衛星影像（當天/前一天）": []}
@@ -827,6 +937,11 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
                                          f"{f['product']}<br>{sat_links(f['lat'], f['lon'], datetime.fromisoformat(f['time']))}",
                                          max_width=320)).add_to(fg)
     ctl["事件"].append(fg)
+
+    # 透明道路/地名標示，可疊在航照或衛星底圖上
+    ctl["範圍與氣象"].append(folium.TileLayer(
+        "https://wmts.nlsc.gov.tw/wmts/EMAP2/default/GoogleMapsCompatible/{z}/{y}/{x}", name="道路/地名標示（疊在影像上）",
+        attr="&copy; 內政部國土測繪中心", max_zoom=19, overlay=True, show=False).add_to(m))
 
     # 事件當天與前一天的衛星每日影像（預設關閉；VIIRS 約臺灣時間 13:30 過境）
     for d in [(t - timedelta(days=1)).date().isoformat(), t.date().isoformat()]:
