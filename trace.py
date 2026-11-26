@@ -454,7 +454,16 @@ def _walk_obs(node, ctx=None, out=None):
             wd = next((flat[k] for k in flat if "winddirection" in k and "max" not in k and "gust" not in k), None)
             ws = next((flat[k] for k in flat if "windspeed" in k and "max" not in k and "gust" not in k), None)
             if wd is not None and ws is not None:
-                out.append(dict(sid=ctx.get("sid"), time=low[tkey], wd=wd, ws=ws))
+                tv = low[tkey]
+                hr = next((flat[k] for k in ("hour", "obshour", "hh") if k in flat), None)
+                if hr is not None and len(tv.strip()) <= 10:  # 日期與小時分開給
+                    try:
+                        h = int(float(hr))
+                        tv = (datetime.fromisoformat(tv.strip()[:10]) + timedelta(hours=h)).strftime("%Y-%m-%d %H:%M")
+                    except ValueError:
+                        pass
+                out.append(dict(sid=ctx.get("sid"), time=tv, wd=wd, ws=ws,
+                                raw={k: v for k, v in list(flat.items())[:12]}))
         for v in node.values():
             _walk_obs(v, ctx, out)
     elif isinstance(node, list):
@@ -559,6 +568,13 @@ def collect_cwa_wind(lat, lon, t, search_km, key):
                   f"（站：{sorted({x['sid'] for x in recs})[:10]}）；回傳開頭：{' '.join(r.text[:300].split())}", file=sys.stderr)
             for x in recs:
                 add(x["sid"], x["time"], x["wd"], x["ws"])
+            mine = [x for x in recs if x["sid"] in near]
+            print(f"  [cwa] 其中屬於附近測站 {len(mine)} 筆（{sorted({x['sid'] for x in mine})}）", file=sys.stderr)
+            if mine and not out:
+                tt = sorted(str(x["time"]) for x in mine)
+                print(f"  [cwa] 附近測站資料時間範圍 {tt[0]} ~ {tt[-1]}；樣本：{mine[len(mine) // 2]}", file=sys.stderr)
+            elif not mine:
+                print(f"  [cwa] 樣本（非附近站）：{recs[0] if recs else None}", file=sys.stderr)
             if out:
                 break
         if not out:
