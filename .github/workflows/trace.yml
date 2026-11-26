@@ -20,6 +20,9 @@ on:
       window_hours:
         description: "往前回溯小時數"
         default: "24"
+      wind_radius_km:
+        description: "採用測站風向的距離上限 (km)"
+        default: "5"
       wind_dir:
         description: "（選填）手動風向°（風吹來的方向）；空白則自動：環境部/氣象署測站→Open-Meteo 模式"
         default: ""
@@ -66,12 +69,13 @@ jobs:
           W: ${{ inputs.window_hours }}
           WD: ${{ inputs.wind_dir }}
           WS: ${{ inputs.wind_speed }}
+          WRAD: ${{ inputs.wind_radius_km }}
           MAP_URL: ${{ env.PAGES_BASE }}/runs/${{ github.run_id }}/map.html
           SEARCH_INDEX_URL: ${{ env.PAGES_BASE }}/search/index.json
         run: |
           EXTRA=()
           if [ -n "$WD" ]; then EXTRA+=(--wind-dir "$WD" --wind-speed "${WS:-0}"); fi
-          python trace.py --lat "$LAT" --lon "$LON" --time "$T" --radius "$R" --window-hours "$W" --out output "${EXTRA[@]}"
+          python trace.py --lat "$LAT" --lon "$LON" --time "$T" --radius "$R" --window-hours "$W" --wind-radius "${WRAD:-5}" --out output "${EXTRA[@]}"
           cat output/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       # ---- 發布到 GitHub Pages（gh-pages 分支，保留歷次結果）
