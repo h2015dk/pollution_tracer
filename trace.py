@@ -463,6 +463,42 @@ def _walk_obs(node, ctx=None, out=None):
     return out
 
 
+def _xml_to_dict(el):
+    """XML → 巢狀 dict（去掉命名空間），讓 _walk_obs 可共用。"""
+    kids = list(el)
+    if not kids:
+        return (el.text or "").strip()
+    d = {}
+    for c in kids:
+        k = c.tag.split("}", 1)[-1]
+        v = _xml_to_dict(c)
+        if k in d:
+            d[k] = d[k] if isinstance(d[k], list) else [d[k]]
+            d[k].append(v)
+        else:
+            d[k] = v
+    return d
+
+
+def _json_or_xml(r):
+    try:
+        return r.json()
+    except ValueError:
+        root = ET.fromstring(r.content)
+        return {root.tag.split("}", 1)[-1]: _xml_to_dict(root)}
+
+
+def _strings(node):
+    if isinstance(node, dict):
+        for v in node.values():
+            yield from _strings(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _strings(v)
+    elif isinstance(node, str):
+        yield node
+
+
 def _wd_deg(v):
     x = _num(v)
     if x is not None:
@@ -471,8 +507,9 @@ def _wd_deg(v):
 
 
 def collect_cwa_wind(lat, lon, t, search_km, key):
-    """氣象署測站風向：事件在 90 分鐘內用即時觀測；否則用氣候資料
-    C-B0024-001（近 30 天）/ C-B0024-002（近一年）逐時觀測。超過一年無法以 API 取得。"""
+    """氣象署測站風向：事件在 90 分鐘內用即時觀測（含自動站）；否則用氣候資料
+    C-B0024-001（近 30 天）/ C-B0024-002（近一年）署屬有人站逐時觀測（檔案 API）。
+    自動站（C0 開頭）的歷史逐時資料開放 API 未提供，需由 CODiS 下載。"""
     if not key:
         FAILED.append("氣象署測站風向：未設定 CWA_API_KEY，未查詢")
         return []
@@ -501,20 +538,27 @@ def collect_cwa_wind(lat, lon, t, search_km, key):
             add(sid, str(v["now"].get("ObsTime", {}).get("DateTime", "")), we.get("WindDirection"), we.get("WindSpeed"))
     elif age_h <= 365 * 24:
         ds = "C-B0024-001" if age_h <= 29 * 24 else "C-B0024-002"
-        ids = ",".join(near)
-        tries = [dict(StationId=ids, timeFrom=f"{t0:%Y-%m-%dT%H:%M:%S}", timeTo=f"{t1:%Y-%m-%dT%H:%M:%S}"),
-                 dict(StationId=ids)]
-        for extra in tries:
+        # 氣候資料集不在 REST datastore（會 404），改用檔案 API 下載整份（僅署屬有人站，站號 46 開頭）
+        tries = [(CWA_API + ds, dict(StationId=",".join(near))),
+                 (f"https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/{ds}", dict(downloadType="WEB"))]
+        i = 0
+        while i < len(tries):
+            url, extra = tries[i]
+            i += 1
             try:
-                js = http("GET", CWA_API + ds, params=dict(Authorization=key, format="JSON", **extra), timeout=180).json()
+                r = http("GET", url, params=dict(Authorization=key, format="JSON", **extra), timeout=300, retries=2)
+                js = _json_or_xml(r)
             except Exception as e:
-                print(f"  [cwa] {ds} {list(extra)} 失敗：{e}", file=sys.stderr)
+                print(f"  [cwa] {ds} @ {url.split('/')[3]} 失敗：{str(e)[:160]}", file=sys.stderr)
                 continue
             recs = _walk_obs(js)
-            print(f"  [cwa] {ds} 參數 {list(extra)} → 解析到 {len(recs)} 筆風資料；回傳開頭：{json.dumps(js, ensure_ascii=False)[:400]}",
-                  file=sys.stderr)
-            for r in recs:
-                add(r["sid"], r["time"], r["wd"], r["ws"])
+            if not recs:  # 檔案 API 可能只回傳下載連結 → 追下去
+                links = [u for u in _strings(js) if u.startswith("http") and "opendata" in u and u != url]
+                tries += [(u, {}) for u in links[:2] if (u, {}) not in tries]
+            print(f"  [cwa] {ds} @ {url.split('/')[3]}：{len(r.content) / 1e6:.1f} MB，解析到 {len(recs)} 筆風資料"
+                  f"（站：{sorted({x['sid'] for x in recs})[:10]}）；回傳開頭：{' '.join(r.text[:300].split())}", file=sys.stderr)
+            for x in recs:
+                add(x["sid"], x["time"], x["wd"], x["ws"])
             if out:
                 break
         if not out:
