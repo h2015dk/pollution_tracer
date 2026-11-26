@@ -1208,6 +1208,7 @@ def main():
     ap.add_argument("--out", default="output")
     ap.add_argument("--wind-dir", type=float, help="手動風向（度，風吹來的方向），優先於測站與 Open-Meteo")
     ap.add_argument("--wind-speed", type=float, default=0.0, help="手動風速 m/s")
+    ap.add_argument("--wind-radius", type=float, default=5.0, help="採用測站風向的距離上限（公里）")
     ap.add_argument("--industrial-buffer", type=float, default=0.8,
                     help="火點距工業熱源多少公里內視為疑似工業熱源")
     a = ap.parse_args()
@@ -1234,9 +1235,9 @@ def main():
             FAILED.append(f"{label}：{str(e)[:150]}")
             return default
 
-    search_km = max(15.0, a.radius)
+    search_km = a.wind_radius  # 只採用此距離內的測站風向；都沒有時改用模式風
     obs = safe("環境部測站風向", lambda: collect_moenv_wind(a.lat, a.lon, t, search_km, os.getenv("MOENV_API_KEY", "").strip()), [])
-    obs += safe("氣象署測站風向", lambda: collect_cwa_wind(a.lat, a.lon, t, search_km, os.getenv("CWA_API_KEY", "").strip(), a.radius), [])
+    obs += safe("氣象署測站風向", lambda: collect_cwa_wind(a.lat, a.lon, t, search_km, os.getenv("CWA_API_KEY", "").strip(), search_km), [])
     st_wind, stations = station_wind(obs)
     model_wind = safe("模式風（Open-Meteo）", lambda: collect_wind(a.lat, a.lon, t), None)
     if model_wind:
@@ -1245,6 +1246,8 @@ def main():
         wind = dict(dir=a.wind_dir % 360, speed=a.wind_speed, precip=0.0, hours=0, manual=True)
     else:
         wind = st_wind or model_wind  # 優先用測站，沒有才用模式
+        if not st_wind and model_wind:
+            model_wind["source"] += f"（{a.wind_radius:g} km 內無測站風向資料）"
     sources = safe("OSM 固定源/施工/廟宇", lambda: collect_osm(a.lat, a.lon, a.radius), [])
     sources += safe("環境部列管公私場所", lambda: collect_moenv_sources(a.lat, a.lon, a.radius), [])
     sources += collect_extra(a.extra_sources)
