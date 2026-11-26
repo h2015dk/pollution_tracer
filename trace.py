@@ -1040,9 +1040,13 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
     if stations:
         sg = folium.FeatureGroup(name=f"測站風向（{len(stations)} 站，線指向下風）").add_to(m)
         for st in stations:
-            tip = destination(st["lat"], st["lon"], (st["dir"] + 180) % 360, 0.4 + 0.25 * min(st["speed"], 8))
+            down = (st["dir"] + 180) % 360           # 箭頭指向下風（風吹去的方向）
+            L = 0.8 + 0.35 * min(st["speed"], 8)     # 長度隨風速（km）
+            tip = destination(st["lat"], st["lon"], down, L)
             col = "#1f77b4" if st["source"] == "環境部" else "#2ca02c"
-            folium.PolyLine([[st["lat"], st["lon"]], list(tip)], color=col, weight=4).add_to(sg)
+            folium.PolyLine([[st["lat"], st["lon"]], list(tip)], color=col, weight=4, opacity=0.9).add_to(sg)
+            head = [list(tip)] + [list(destination(*tip, (down + 180 + a) % 360, 0.3)) for a in (-28, 28)]
+            folium.Polygon(head, color=col, weight=1, fill=True, fill_color=col, fill_opacity=1).add_to(sg)
             card = station_card(st)
             folium.CircleMarker([st["lat"], st["lon"]], radius=6, color=col, fill=True, fill_opacity=1,
                                 tooltip=folium.Tooltip(card), popup=folium.Popup(card, max_width=260)).add_to(sg)
@@ -1059,7 +1063,8 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
                 card = (f"<b>氣象署 {html.escape(x['name'])}</b>（{x['kind']}，站號 {x['id']}，距 {x['dist_km']} km）<br>"
                         "<span style=color:#888>未取得事件時段風向，可由 CODiS 下載逐時資料放入 data/codis/</span>")
             folium.Marker([x["lat"], x["lon"]],
-                          icon=folium.DivIcon(html=f"<div style='font:bold 11px sans-serif;color:{'#2ca02c' if st else '#888'};"
+                          icon=folium.DivIcon(icon_anchor=(-8, 18),  # 標籤放在測站右上方，不擋住圓點與箭頭
+                                              html=f"<div style='font:bold 11px sans-serif;color:{'#2ca02c' if st else '#888'};"
                                                    f"white-space:nowrap;text-shadow:0 0 3px #fff'>▲{html.escape(x['name'])}</div>"),
                           tooltip=folium.Tooltip(card), popup=folium.Popup(card, max_width=260)).add_to(cg)
         ctl["範圍與氣象"].append(cg)
@@ -1127,6 +1132,14 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
                 max_native_zoom=9, max_zoom=19, overlay=True, show=False, opacity=0.85).add_to(m))
 
     add_search(m, sources, stations, (lat, lon), radius)
+    if stations:
+        m.get_root().html.add_child(folium.Element(
+            "<div style='position:fixed;bottom:28px;right:10px;z-index:9999;background:#fff;padding:6px 8px;"
+            "border:1px solid #999;border-radius:6px;font:12px/1.6 sans-serif'>"
+            "<b>測站風向圖例</b><br>"
+            "<span style='color:#1f77b4;font-weight:bold'>●━━▶</span> 環境部空品測站<br>"
+            "<span style='color:#2ca02c;font-weight:bold'>●━━▶</span> 氣象署有人站<br>"
+            "<span style='color:#666'>箭頭指向下風；越長風越大<br>游標移到圓點看逐時風向</span></div>"))
     GroupedLayerControl({k: v for k, v in ctl.items() if v}, exclusive_groups=False, base_layers=base,
                         collapsed=True, groupCheckboxes=True).add_to(m)
     # 桌機預設展開圖層選單，手機維持收合（點右上圖示展開）
