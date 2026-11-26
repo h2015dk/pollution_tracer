@@ -552,7 +552,9 @@ def read_codis(t, t0, t1):
 
 CWA_NEAR = []  # 風向採用距離內的氣象署測站（地圖圖層與訊息用）
 CWA_GOT = set()  # 已取得事件時段風向的測站名稱
-CWA_NEAR_KM = [5.0]  # 上述距離（公里），由 collect_cwa_wind 設定
+CWA_NEAR_KM = [5.0]
+CWA_NEAREST_KM = [15.0]
+WIND_KM = [5.0]  # 一般測站風向距離上限  # 有人站另設的較大距離：一般距離內沒有時，取此距離內最近的一站  # 上述距離（公里），由 collect_cwa_wind 設定
 
 
 def _station_kind(sid):
@@ -560,42 +562,40 @@ def _station_kind(sid):
 
 
 def cwa_near_text(radius):
-    """例：10 公里內有署屬站 後龍（467280，3.4 km），共 1 站；自動站 5 站（苗栗 C0E750 2.1 km…，需 CODiS）"""
+    """例：5 公里內有署屬有人站 後龍✓（467280，3.4 km），共 1 站"""
     if not CWA_NEAR:
-        return f"{radius:g} 公里內無氣象署測站"
-    main = [x for x in CWA_NEAR if x["kind"] == "署屬"]
-    auto = [x for x in CWA_NEAR if x["kind"] != "署屬"]
-    parts = []
+        return f"{CWA_NEAREST_KM[0]:g} 公里內無署屬有人站（自動站不採用；可放寬「氣象署有人站距離上限」）"
     mark = lambda x: "✓" if x["name"] in CWA_GOT else ""
-    if main:
-        parts.append(f"{radius:g} 公里內有署屬站 " + "、".join(f"{x['name']}{mark(x)}（{x['id']}，{x['dist_km']} km）" for x in main)
-                     + f"，共 {len(main)} 站")
-    else:
-        parts.append(f"{radius:g} 公里內無署屬站")
-    if auto:
-        miss = any(x["name"] not in CWA_GOT for x in auto)
-        parts.append(f"自動站 {len(auto)} 站（" + "、".join(f"{x['name']}{mark(x)} {x['id']} {x['dist_km']} km" for x in auto[:6])
-                     + ("…" if len(auto) > 6 else "") + ("，未取得者歷史資料需由 CODiS 下載" if miss else "") + "）")
-    if CWA_GOT:
-        parts.append("✓＝已取得風向")
-    return "；".join(parts)
+    head = (f"{WIND_KM[0]:g} 公里內無署屬有人站，改用 {radius:g} 公里內最近的 " if radius > WIND_KM[0]
+            else f"{radius:g} 公里內有署屬有人站 ")
+    txt = (head + "、".join(f"{x['name']}{mark(x)}（{x['id']}，{x['dist_km']} km）" for x in CWA_NEAR)
+           + f"，共 {len(CWA_NEAR)} 站")
+    return txt + ("；✓＝已取得風向" if CWA_GOT else "")
 
 
 def collect_cwa_wind(lat, lon, t, search_km, key, radius=10.0):
-    """氣象署測站風向：事件在 90 分鐘內用即時觀測（含自動站）；否則用氣候資料
-    C-B0024-001（近 30 天）/ C-B0024-002（近一年）署屬有人站逐時觀測（檔案 API）。
-    自動站（C0 開頭）的歷史逐時資料開放 API 未提供，需由 CODiS 下載。"""
+    """氣象署署屬有人站（站號 46 開頭）風向：data/codis/ 的 CODiS 檔優先；事件在 90 分鐘內用即時觀測；
+    否則用氣候資料 C-B0024-001（近 30 天）/ C-B0024-002（近一年）逐時觀測（檔案 API）。自動站不採用。"""
     if not key:
         FAILED.append("氣象署測站風向：未設定 CWA_API_KEY，未查詢")
         return []
     stations = _cwa_stations(key)
-    near = {sid: v for sid, v in stations.items() if haversine(lat, lon, v["lat"], v["lon"]) <= search_km}
+    # 只採用署屬有人站（站號 46 開頭，QA/QC 較完整）；自動站不納入風向判定
+    cand = sorted(((haversine(lat, lon, v["lat"], v["lon"]), sid, v) for sid, v in stations.items()
+                   if str(sid).startswith("46")), key=lambda x: x[0])
+    near = {sid: v for d, sid, v in cand if d <= search_km}
+    if not near and cand and cand[0][0] <= CWA_NEAREST_KM[0]:  # 距離內沒有 → 取較大距離內最近的一站
+        d, sid, v = cand[0]
+        near = {sid: v}
+        radius = CWA_NEAREST_KM[0]
+        print(f"  [cwa] {search_km:g} km 內無有人站，改用 {CWA_NEAREST_KM[0]:g} km 內最近的 {v['name']}({sid}) {d:.1f} km",
+              file=sys.stderr)
     CWA_NEAR_KM[0] = radius
     CWA_NEAR[:] = sorted((dict(id=sid, name=v["name"], lat=v["lat"], lon=v["lon"], kind=_station_kind(sid),
                                dist_km=round(haversine(lat, lon, v["lat"], v["lon"]), 1))
-                          for sid, v in near.items() if haversine(lat, lon, v["lat"], v["lon"]) <= radius),
+                          for sid, v in near.items()),
                          key=lambda x: (x["kind"] != "署屬", x["dist_km"]))
-    print(f"  [cwa] 半徑 {search_km:g} km 內測站：" + "、".join(f"{v['name']}({sid})" for sid, v in near.items()),
+    print(f"  [cwa] {radius:g} km 內採用的有人站：" + "、".join(f"{v['name']}({sid})" for sid, v in near.items()),
           file=sys.stderr)
     if not near:
         return []
@@ -619,12 +619,13 @@ def collect_cwa_wind(lat, lon, t, search_km, key, radius=10.0):
     codis = read_codis(t, t0, t1)
     for sid, rows in codis.items():
         if sid not in near:
-            print(f"  [codis] {sid} 不在半徑內或測站清單中，略過", file=sys.stderr)
+            why = "自動站不採用" if not str(sid).startswith("46") else "不在距離內或測站清單中"
+            print(f"  [codis] {sid} {why}，略過", file=sys.stderr)
             continue
         for tt, wd, ws in rows:
             add(sid, tt.isoformat(), wd, ws, from_codis=True)
     if codis:
-        print(f"  [codis] 由 CODiS 檔取得 {len(out)} 筆（{sorted(codis)}）", file=sys.stderr)
+        print(f"  [codis] 由 CODiS 檔取得 {len(out)} 筆（採用：{sorted(k for k in codis if k in near)}）", file=sys.stderr)
     done_ids = {sid for sid in codis if sid in near}
     CWA_GOT.update(x["station"] for x in out)
 
@@ -999,6 +1000,16 @@ def add_search(m, sources, stations=(), center=(0, 0), radius=0):
                          center=json.dumps(list(center)), radius=radius)))
 
 
+def station_card(st, extra=""):
+    """測站風向卡片（游標停留與點擊共用）：平均風向、穩定度、逐時表。"""
+    rows = "".join(f"<tr><td>{h}</td><td>{compass(d)} {d:.0f}°</td><td>{v:.1f}</td></tr>" for h, d, v in st["hourly"])
+    return (f"<b>{st['source']} {html.escape(st['station'])}</b>（{extra + '，' if extra else ''}距 {st['dist_km']} km）<br>"
+            f"平均：自{compass(st['dir'])}方 {st['dir']:.0f}°，{st['speed']:.1f} m/s，穩定度 {st['steady']:.2f}"
+            f"{'（風向不穩）' if st['steady'] < 0.6 else ''}"
+            f"<table border=1 style='border-collapse:collapse;margin-top:2px'>"
+            f"<tr><th>時</th><th>風向</th><th>m/s</th></tr>{rows}</table>")
+
+
 def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, stations=(), model_wind=None):
     m = folium.Map(location=[lat, lon], zoom_start=12, tiles=None)
     base = []
@@ -1027,33 +1038,30 @@ def build_map(lat, lon, radius, t, wind, sources, fires, news, places, out_dir, 
         ctl["範圍與氣象"].append(wg)
 
     if stations:
-        sg = folium.FeatureGroup(name=f"測站風向（{CWA_NEAR_KM[0]:g} km 內 {len(stations)} 站，線指向下風）").add_to(m)
+        sg = folium.FeatureGroup(name=f"測站風向（{len(stations)} 站，線指向下風）").add_to(m)
         for st in stations:
             tip = destination(st["lat"], st["lon"], (st["dir"] + 180) % 360, 0.4 + 0.25 * min(st["speed"], 8))
             col = "#1f77b4" if st["source"] == "環境部" else "#2ca02c"
             folium.PolyLine([[st["lat"], st["lon"]], list(tip)], color=col, weight=4).add_to(sg)
-            rows = "".join(f"<tr><td>{h}</td><td>{compass(d)} {d:.0f}°</td><td>{v:.1f}</td></tr>"
-                           for h, d, v in st["hourly"])
+            card = station_card(st)
             folium.CircleMarker([st["lat"], st["lon"]], radius=6, color=col, fill=True, fill_opacity=1,
-                                tooltip=f"{st['source']} {st['station']}：自{compass(st['dir'])} {st['speed']:.1f} m/s",
-                                popup=folium.Popup(
-                                    f"<b>{st['source']} {html.escape(st['station'])}</b>（距 {st['dist_km']} km）<br>"
-                                    f"平均：自{compass(st['dir'])}方 {st['dir']:.0f}°，{st['speed']:.1f} m/s，"
-                                    f"穩定度 {st['steady']:.2f}<table border=1 style=border-collapse:collapse>"
-                                    f"<tr><th>時</th><th>風向</th><th>m/s</th></tr>{rows}</table>",
-                                    max_width=260)).add_to(sg)
+                                tooltip=folium.Tooltip(card), popup=folium.Popup(card, max_width=260)).add_to(sg)
         ctl["範圍與氣象"].append(sg)
 
     if CWA_NEAR:
-        cg = folium.FeatureGroup(name=f"氣象署測站（{CWA_NEAR_KM[0]:g} km 內 {len(CWA_NEAR)} 站）").add_to(m)
-        got = {st["station"] for st in stations if st["source"] == "氣象署"}
+        cg = folium.FeatureGroup(name=f"氣象署有人站（{CWA_NEAR_KM[0]:g} km 內 {len(CWA_NEAR)} 站）").add_to(m)
+        got = {st["station"]: st for st in stations if st["source"] == "氣象署"}
         for x in CWA_NEAR:
-            ok = x["name"] in got
+            st = got.get(x["name"])
+            if st:  # 與環境部測站相同：平均風向＋逐時表
+                card = station_card(st, f"{x['kind']}，站號 {x['id']}")
+            else:
+                card = (f"<b>氣象署 {html.escape(x['name'])}</b>（{x['kind']}，站號 {x['id']}，距 {x['dist_km']} km）<br>"
+                        "<span style=color:#888>未取得事件時段風向，可由 CODiS 下載逐時資料放入 data/codis/</span>")
             folium.Marker([x["lat"], x["lon"]],
-                          icon=folium.DivIcon(html=f"<div style='font:bold 11px sans-serif;color:{'#2ca02c' if ok else '#888'};"
+                          icon=folium.DivIcon(html=f"<div style='font:bold 11px sans-serif;color:{'#2ca02c' if st else '#888'};"
                                                    f"white-space:nowrap;text-shadow:0 0 3px #fff'>▲{html.escape(x['name'])}</div>"),
-                          tooltip=f"{x['kind']} {x['name']}（{x['id']}）{x['dist_km']} km"
-                                  f"{'｜已取得風向' if ok else '｜未取得風向，可由 CODiS 下載放入 data/codis/'}").add_to(cg)
+                          tooltip=folium.Tooltip(card), popup=folium.Popup(card, max_width=260)).add_to(cg)
         ctl["範圍與氣象"].append(cg)
 
     colors = {c: v[1] for c, v in OSM_CATEGORIES.items()} | EXTRA_COLORS
@@ -1165,14 +1173,14 @@ window.addEventListener('load', function () {
                      f"{model_wind['speed']:.1f} m/s，與判定風向差 {diff:.0f}°"
                      f"{'（差異大，上風判斷請保守看待）' if diff > 45 else ''}<br>")
         if stations:
-            h.append(f"<details><summary>測站風向（{CWA_NEAR_KM[0]:g} km 內，事件前3h～後1h平均）</summary>" + "<br>".join(
+            h.append(f"<details><summary>測站風向（環境部 {WIND_KM[0]:g} km 內＋氣象署有人站，事件前3h～後1h平均）</summary>" + "<br>".join(
                 f"{s['source']} {html.escape(s['station'])} {s['dist_km']} km：自{compass(s['dir'])} {s['dir']:.0f}° "
                 f"{s['speed']:.1f} m/s{'，風向不穩' if s['steady'] < 0.6 else ''}" for s in stations) + "</details>")
     else:
         h.append("<b style=color:#d62728>風：氣象資料取得失敗 → 無法判斷上風處</b>"
                  "（可用 --wind-dir/--wind-speed 手動輸入測站風向）<br>")
-    if CWA_NEAR:
-        h.append(f"<span style=color:#555>氣象署測站：{html.escape(cwa_near_text(CWA_NEAR_KM[0]))}</span><br>")
+    if True:
+        h.append(f"<span style=color:#555>氣象署：{html.escape(cwa_near_text(CWA_NEAR_KM[0]))}</span><br>")
     if FAILED:
         h.append("<hr><b style=color:#d62728>⚠ 資料查詢失敗（以下類別為「未取得」，不是 0 筆）</b><br>"
                  + "<br>".join(html.escape(x) for x in FAILED))
@@ -1221,6 +1229,8 @@ def main():
     ap.add_argument("--wind-dir", type=float, help="手動風向（度，風吹來的方向），優先於測站與 Open-Meteo")
     ap.add_argument("--wind-speed", type=float, default=0.0, help="手動風速 m/s")
     ap.add_argument("--wind-radius", type=float, default=5.0, help="採用測站風向的距離上限（公里）")
+    ap.add_argument("--cwa-radius", type=float, default=15.0,
+                    help="氣象署有人站：距離上限內沒有時，改取此距離內最近的一站（公里）")
     ap.add_argument("--industrial-buffer", type=float, default=0.8,
                     help="火點距工業熱源多少公里內視為疑似工業熱源")
     a = ap.parse_args()
@@ -1248,6 +1258,8 @@ def main():
             return default
 
     search_km = a.wind_radius  # 只採用此距離內的測站風向；都沒有時改用模式風
+    CWA_NEAREST_KM[0] = max(a.cwa_radius, a.wind_radius)
+    WIND_KM[0] = a.wind_radius
     obs = safe("環境部測站風向", lambda: collect_moenv_wind(a.lat, a.lon, t, search_km, os.getenv("MOENV_API_KEY", "").strip()), [])
     obs += safe("氣象署測站風向", lambda: collect_cwa_wind(a.lat, a.lon, t, search_km, os.getenv("CWA_API_KEY", "").strip(), search_km), [])
     st_wind, stations = station_wind(obs)
