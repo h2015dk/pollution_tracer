@@ -6,11 +6,11 @@ on:
       lat:
         description: "緯度 (WGS84)"
         required: true
-        default: "25.0800"
+        default: "24.59335"
       lon:
         description: "經度 (WGS84)"
         required: true
-        default: "121.5800"
+        default: "120.81040"
       time:
         description: "時間 (台北時間) 例 2026-11-22 14:00"
         required: true
