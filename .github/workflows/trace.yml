@@ -22,7 +22,7 @@ on:
         default: "24"
       wind_radius_km:
         description: "採用測站風向的距離上限 (km)"
-        default: "5"
+        default: "10"
       cwa_radius_km:
         description: "氣象署有人站：上限內沒有時，取此距離內最近一站 (km)"
         default: "15"
