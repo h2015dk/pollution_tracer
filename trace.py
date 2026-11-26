@@ -512,6 +512,11 @@ def _wd_deg(v):
     x = _num(v)
     if x is not None:
         return x % 360
+    # 氣象署過去觀測可能是「風向,其他」逗號串接；X 表缺測/儀器異常 → 取第一個可用數值
+    for part in str(v).split(","):
+        x = _num(part)
+        if x is not None:
+            return x % 360
     return DIR16.get(str(v).strip().replace("風", ""))
 
 
@@ -572,7 +577,12 @@ def collect_cwa_wind(lat, lon, t, search_km, key):
             print(f"  [cwa] 其中屬於附近測站 {len(mine)} 筆（{sorted({x['sid'] for x in mine})}）", file=sys.stderr)
             if mine and not out:
                 tt = sorted(str(x["time"]) for x in mine)
-                print(f"  [cwa] 附近測站資料時間範圍 {tt[0]} ~ {tt[-1]}；樣本：{mine[len(mine) // 2]}", file=sys.stderr)
+                print(f"  [cwa] 附近測站資料時間範圍 {tt[0]} ~ {tt[-1]}", file=sys.stderr)
+                win = [x for x in mine if (d := _parse_ts(x["time"])) and t0 <= d <= t1]
+                for x in win:
+                    print(f"  [cwa] 事件時段原始值 {x['sid']} {x['time']} 風向={x['wd']!r} 風速={x['ws']!r}", file=sys.stderr)
+                bad = sum(1 for x in mine if _wd_deg(x["wd"]) is None)
+                print(f"  [cwa] 附近測站全年 {len(mine)} 筆中，風向無法使用（X/缺測）{bad} 筆", file=sys.stderr)
             elif not mine:
                 print(f"  [cwa] 樣本（非附近站）：{recs[0] if recs else None}", file=sys.stderr)
             if out:
